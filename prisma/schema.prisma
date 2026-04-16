@@ -1,0 +1,343 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  role          String  @default("USER")
+  isActive      Boolean   @default(true)
+  phone         String?
+  centerId      String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  center   Center? @relation(fields: [centerId], references: [id])
+  accounts Account[]
+  sessions Session[]
+
+  // Relations
+  packageNotifications  PackageNotification[]
+  mailNotifications     MailNotification[]
+  reservations         Reservation[]
+  sentMessages         Message[]             @relation("SentMessages")
+  receivedMessages     Message[]             @relation("ReceivedMessages")
+
+  @@map("users")
+}
+
+model Center {
+  id            String   @id @default(cuid())
+  name          String
+  address       String
+  city          String
+  postalCode    String
+  country       String
+  phone         String?
+  email         String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  users             User[]
+  enterprises       Enterprise[]
+  meetingRooms      MeetingRoom[]
+  coworkingSpaces   CoworkingSpace[]
+  packages          Package[]
+  mails             Mail[]
+
+  @@map("centers")
+}
+
+model Enterprise {
+  id                String            @id @default(cuid())
+  name              String
+  legalForm         String?
+  siret             String?           @unique
+  address           String
+  city              String
+  postalCode        String
+  country           String
+  phone             String?
+  email             String?
+  contactPerson     String?
+  status            String  @default("ACTIVE")
+  domiciliationDate DateTime?
+  suspensionDate    DateTime?
+  terminationDate   DateTime?
+  centerId          String
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  center            Center            @relation(fields: [centerId], references: [id])
+
+  // Relations
+  subscriptions     Subscription[]
+  invoices          Invoice[]
+  packages          Package[]
+  mails             Mail[]
+
+  @@map("enterprises")
+}
+
+model MeetingRoom {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  capacity    Int
+  equipment   String   // JSON string of equipment
+  hourlyRate  Float
+  isActive    Boolean  @default(true)
+  centerId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  center       Center        @relation(fields: [centerId], references: [id])
+  reservations Reservation[]
+
+  @@map("meeting_rooms")
+}
+
+model CoworkingSpace {
+  id           String   @id @default(cuid())
+  name         String
+  description  String?
+  totalSpots   Int
+  dailyRate    Float
+  monthlyRate  Float
+  yearlyRate   Float
+  amenities    String   // JSON string of amenities
+  isActive     Boolean  @default(true)
+  centerId     String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  center        Center         @relation(fields: [centerId], references: [id])
+  subscriptions Subscription[]
+
+  @@map("coworking_spaces")
+}
+
+model Reservation {
+  id           String            @id @default(cuid())
+  userId       String
+  meetingRoomId String
+  title        String
+  description  String?
+  startTime    DateTime
+  endTime      DateTime
+  totalAmount  Float
+  status       String @default("CONFIRMED")
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  user        User        @relation(fields: [userId], references: [id])
+  meetingRoom MeetingRoom @relation(fields: [meetingRoomId], references: [id])
+
+  @@map("reservations")
+}
+
+model Subscription {
+  id               String         @id @default(cuid())
+  enterpriseId     String
+  coworkingSpaceId String?
+  type             String
+  startDate        DateTime
+  endDate          DateTime
+  monthlyAmount    Float
+  isActive         Boolean        @default(true)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  enterprise      Enterprise      @relation(fields: [enterpriseId], references: [id])
+  coworkingSpace  CoworkingSpace? @relation(fields: [coworkingSpaceId], references: [id])
+  invoices        Invoice[]
+
+  @@map("subscriptions")
+}
+
+model Package {
+  id           String        @id @default(cuid())
+  tracking     String        @unique
+  recipient    String
+  sender       String?
+  enterpriseId String?
+  centerId     String
+  status       String @default("RECEIVED")
+  receivedAt   DateTime      @default(now())
+  collectedAt  DateTime?
+  notes        String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  enterprise    Enterprise?           @relation(fields: [enterpriseId], references: [id])
+  center        Center                @relation(fields: [centerId], references: [id])
+  notifications PackageNotification[]
+
+  @@map("packages")
+}
+
+model PackageNotification {
+  id        String   @id @default(cuid())
+  packageId String
+  userId    String
+  sentAt    DateTime @default(now())
+  readAt    DateTime?
+
+  package Package @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@map("package_notifications")
+}
+
+model Mail {
+  id           String     @id @default(cuid())
+  recipient    String
+  sender       String?
+  enterpriseId String?
+  centerId     String
+  status       String @default("RECEIVED")
+  receivedAt   DateTime   @default(now())
+  collectedAt  DateTime?
+  notes        String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  enterprise    Enterprise?        @relation(fields: [enterpriseId], references: [id])
+  center        Center             @relation(fields: [centerId], references: [id])
+  notifications MailNotification[]
+
+  @@map("mails")
+}
+
+model MailNotification {
+  id     String   @id @default(cuid())
+  mailId String
+  userId String
+  sentAt DateTime @default(now())
+  readAt DateTime?
+
+  mail Mail @relation(fields: [mailId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("mail_notifications")
+}
+
+model Invoice {
+  id             String        @id @default(cuid())
+  number         String        @unique
+  enterpriseId   String
+  subscriptionId String?
+  amount         Float
+  taxAmount      Float
+  totalAmount    Float
+  dueDate        DateTime
+  status         String @default("PENDING")
+  issuedAt       DateTime      @default(now())
+  paidAt         DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  enterprise   Enterprise   @relation(fields: [enterpriseId], references: [id])
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id])
+
+  @@map("invoices")
+}
+
+model MailingCampaign {
+  id          String              @id @default(cuid())
+  name        String
+  subject     String
+  content     String              // HTML content
+  targetType  String
+  status      String       @default("DRAFT")
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  recipients MailingRecipient[]
+
+  @@map("mailing_campaigns")
+}
+
+model MailingRecipient {
+  id         String   @id @default(cuid())
+  campaignId String
+  email      String
+  name       String?
+  sentAt     DateTime?
+  openedAt   DateTime?
+  clickedAt  DateTime?
+
+  campaign MailingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@map("mailing_recipients")
+}
+
+model Message {
+  id         String      @id @default(cuid())
+  senderId   String
+  receiverId String
+  subject    String
+  content    String
+  status     String @default("UNREAD")
+  readAt     DateTime?
+  createdAt  DateTime    @default(now())
+
+  sender   User @relation("SentMessages", fields: [senderId], references: [id])
+  receiver User @relation("ReceivedMessages", fields: [receiverId], references: [id])
+
+  @@map("messages")
+}
+
+model Settings {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String
+  type  String // 'string', 'number', 'boolean', 'json'
+
+  @@map("settings")
+}
+
