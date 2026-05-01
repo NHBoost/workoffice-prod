@@ -6,270 +6,106 @@ import {
   Building,
   Plus,
   Search,
-  Filter,
-  Calendar,
-  Users,
-  TrendingUp,
-  TrendingDown,
-  MoreVertical,
   Eye,
   Edit,
-  Pause,
-  X,
-  Download
+  Trash2,
+  Download,
+  Loader2,
 } from 'lucide-react'
 
 interface Enterprise {
   id: string
   name: string
-  legalForm: string
-  siret?: string
-  status: 'ACTIVE' | 'SUSPENDED' | 'TERMINATED'
-  domiciliationDate: string
-  contactPerson: string
-  email: string
-  phone?: string
+  legalForm: string | null
+  siret: string | null
+  status: string
+  domiciliationDate: string | null
+  contactPerson: string | null
+  email: string | null
+  phone: string | null
   address: string
   city: string
-  usersCount: number
-  monthlyRevenue: number
+  postalCode: string
+  country: string
+  createdAt: string
+  center: { id: string; name: string } | null
 }
 
-const mockEnterprises: Enterprise[] = [
-  {
-    id: '1',
-    name: 'VERTASOLUTION',
-    legalForm: 'SRL',
-    siret: 'BE0123456789',
-    status: 'ACTIVE',
-    domiciliationDate: '2024-01-15',
-    contactPerson: 'Jean Dupont',
-    email: 'contact@vertasolution.be',
-    phone: '+32 2 123 45 67',
-    address: 'Rue de la Paix 123',
-    city: 'Bruxelles',
-    usersCount: 15,
-    monthlyRevenue: 1250.00
-  },
-  {
-    id: '2',
-    name: 'GULFGUARD',
-    legalForm: 'SA',
-    siret: 'BE0987654321',
-    status: 'ACTIVE',
-    domiciliationDate: '2024-01-10',
-    contactPerson: 'Marie Martin',
-    email: 'info@gulfguard.be',
-    phone: '+32 2 987 65 43',
-    address: 'Avenue Louise 456',
-    city: 'Bruxelles',
-    usersCount: 8,
-    monthlyRevenue: 850.00
-  },
-  {
-    id: '3',
-    name: 'SYNEOLE',
-    legalForm: 'SPRL',
-    siret: 'BE0555666777',
-    status: 'SUSPENDED',
-    domiciliationDate: '2023-12-05',
-    contactPerson: 'Pierre Durand',
-    email: 'contact@syneole.be',
-    address: 'Chaussée de Charleroi 789',
-    city: 'Bruxelles',
-    usersCount: 3,
-    monthlyRevenue: 350.00
-  },
-  {
-    id: '4',
-    name: 'BUILDMETAL CNC',
-    legalForm: 'SRL',
-    status: 'ACTIVE',
-    domiciliationDate: '2024-01-01',
-    contactPerson: 'Sophie Bernard',
-    email: 'info@buildmetal.be',
-    phone: '+32 2 111 22 33',
-    address: 'Rue de l\'Industrie 321',
-    city: 'Liège',
-    usersCount: 12,
-    monthlyRevenue: 980.00
-  },
-  {
-    id: '5',
-    name: 'TECH INNOVATE',
-    legalForm: 'SA',
-    status: 'TERMINATED',
-    domiciliationDate: '2023-06-15',
-    contactPerson: 'David Lambert',
-    email: 'contact@techinnovate.be',
-    address: 'Boulevard du Midi 654',
-    city: 'Gand',
-    usersCount: 0,
-    monthlyRevenue: 0.00
-  },
-]
-
-const stats = [
-  { title: 'Total Entreprises', value: 2917, change: 12, icon: Building, color: 'blue' },
-  { title: 'Actives', value: 2904, change: 8, icon: TrendingUp, color: 'green' },
-  { title: 'Suspendues', value: 13, change: -5, icon: Pause, color: 'yellow' },
-  { title: 'Résiliées', value: 169, change: 3, icon: X, color: 'red' },
-]
+const statusLabel = (s: string) =>
+  ({ ACTIVE: 'Actif', SUSPENDED: 'Suspendu', TERMINATED: 'Résilié' }[s] || s)
+const statusColor = (s: string) =>
+  ({ ACTIVE: 'status-active', SUSPENDED: 'status-suspended', TERMINATED: 'status-terminated' }[s] ||
+    'bg-gray-100 text-gray-800')
 
 export default function EnterprisesPage() {
-  const [enterprises, setEnterprises] = useState<Enterprise[]>(mockEnterprises)
+  const [enterprises, setEnterprises] = useState<Enterprise[]>([])
+  const [total, setTotal] = useState(0)
   const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'all' | 'ACTIVE' | 'SUSPENDED' | 'TERMINATED'>('all')
-  const [selectedTab, setSelectedTab] = useState<'domiciliees' | 'suspendues' | 'resilies'>('domiciliees')
+  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const filteredEnterprises = enterprises.filter(enterprise => {
-    const matchesSearch = enterprise.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         enterprise.contactPerson.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         enterprise.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         enterprise.city.toLowerCase().includes(searchTerm.toLowerCase())
+  useEffect(() => {
+    const params = new URLSearchParams()
+    if (searchTerm) params.set('search', searchTerm)
+    if (statusFilter !== 'all') params.set('status', statusFilter)
+    params.set('limit', '50')
 
-    let matchesTab = true
-    if (selectedTab === 'domiciliees') {
-      matchesTab = enterprise.status === 'ACTIVE'
-    } else if (selectedTab === 'suspendues') {
-      matchesTab = enterprise.status === 'SUSPENDED'
-    } else if (selectedTab === 'resilies') {
-      matchesTab = enterprise.status === 'TERMINATED'
+    setLoading(true)
+    fetch(`/api/enterprises?${params.toString()}`)
+      .then(r => r.ok ? r.json() : Promise.reject(r))
+      .then(data => {
+        setEnterprises(data.enterprises || [])
+        setTotal(data.total || 0)
+        setError(null)
+      })
+      .catch(() => setError('Erreur lors du chargement des entreprises'))
+      .finally(() => setLoading(false))
+  }, [searchTerm, statusFilter])
+
+  const stats = [
+    { title: 'Total', value: total, icon: Building, color: 'blue' },
+    { title: 'Actives', value: enterprises.filter(e => e.status === 'ACTIVE').length, icon: Building, color: 'green' },
+    { title: 'Suspendues', value: enterprises.filter(e => e.status === 'SUSPENDED').length, icon: Building, color: 'orange' },
+    { title: 'Résiliées', value: enterprises.filter(e => e.status === 'TERMINATED').length, icon: Building, color: 'purple' },
+  ]
+
+  const StatCard = ({ title, value, icon: Icon, color }: any) => {
+    const colorClasses: Record<string, string> = {
+      blue: 'bg-blue-500', green: 'bg-green-500', orange: 'bg-orange-500', purple: 'bg-purple-500',
     }
-
-    const matchesStatus = statusFilter === 'all' || enterprise.status === statusFilter
-
-    return matchesSearch && matchesTab && matchesStatus
-  })
-
-  const StatCard = ({ title, value, change, icon: Icon, color }: any) => {
-    const colorClasses = {
-      blue: 'bg-blue-500',
-      green: 'bg-green-500',
-      yellow: 'bg-yellow-500',
-      red: 'bg-red-500'
-    }
-
-    const isPositive = change >= 0
-
     return (
       <div className="stat-card">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-medium text-gray-600">{title}</p>
-            <p className="text-2xl font-bold text-gray-900">{value.toLocaleString()}</p>
+            <p className="text-2xl font-bold text-gray-900">{value.toLocaleString('fr-FR')}</p>
           </div>
-          <div className={`p-3 rounded-full ${colorClasses[color as keyof typeof colorClasses]}`}>
+          <div className={`p-3 rounded-full ${colorClasses[color]}`}>
             <Icon className="h-6 w-6 text-white" />
           </div>
-        </div>
-        <div className="mt-2 flex items-center">
-          {isPositive ? (
-            <TrendingUp className="h-4 w-4 text-green-500" />
-          ) : (
-            <TrendingDown className="h-4 w-4 text-red-500" />
-          )}
-          <span className={`text-sm font-medium ml-1 ${
-            isPositive ? 'text-green-500' : 'text-red-500'
-          }`}>
-            {Math.abs(change)}%
-          </span>
         </div>
       </div>
     )
   }
 
-  const getStatusLabel = (status: string) => {
-    const statusLabels = {
-      'ACTIVE': 'Actif',
-      'SUSPENDED': 'Suspendu',
-      'TERMINATED': 'Résilié'
-    }
-    return statusLabels[status as keyof typeof statusLabels] || status
-  }
-
-  const getStatusColor = (status: string) => {
-    const statusColors = {
-      'ACTIVE': 'status-active',
-      'SUSPENDED': 'status-suspended',
-      'TERMINATED': 'status-terminated'
-    }
-    return statusColors[status as keyof typeof statusColors] || 'bg-gray-100 text-gray-800'
-  }
-
   return (
     <div className="p-6 space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Entreprises Domiciliées</h1>
-          <p className="text-gray-600">Gérez les entreprises domiciliées dans vos centres</p>
+          <h1 className="text-2xl font-bold text-gray-900">Gestion des Entreprises</h1>
+          <p className="text-gray-600">Domiciliation et suivi des entreprises clientes</p>
         </div>
-        <div className="flex items-center space-x-3">
-          <button className="btn-secondary">
-            <Download className="h-4 w-4" />
-            Exporter
-          </button>
-          <Link href="/dashboard/entreprises/add" className="btn-primary">
-            <Plus className="h-4 w-4" />
-            Nouvelle domiciliation
-          </Link>
-        </div>
+        <Link href="/dashboard/entreprises/nouveau" className="btn-primary">
+          <Plus className="h-5 w-5" />
+          Nouvelle entreprise
+        </Link>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat, index) => (
-          <StatCard key={index} {...stat} />
-        ))}
+        {stats.map((s, i) => <StatCard key={i} {...s} />)}
       </div>
 
-      {/* Calendar view indicator */}
-      <div className="flex items-center justify-center py-4">
-        <div className="flex items-center space-x-8">
-          {Array.from({ length: 31 }, (_, i) => (
-            <div key={i} className="flex flex-col items-center">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${
-                i === 15 ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-600'
-              }`}>
-                {i + 1}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-8">
-          {[
-            { id: 'domiciliees', label: 'Entreprises domiciliées', count: enterprises.filter(e => e.status === 'ACTIVE').length },
-            { id: 'suspendues', label: 'Entreprises suspendues', count: enterprises.filter(e => e.status === 'SUSPENDED').length },
-            { id: 'resilies', label: 'Entreprises résiliées', count: enterprises.filter(e => e.status === 'TERMINATED').length },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setSelectedTab(tab.id as any)}
-              className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
-                selectedTab === tab.id
-                  ? 'border-primary-500 text-primary-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              {tab.label}
-              <span className={`ml-2 py-0.5 px-2 rounded-full text-xs ${
-                selectedTab === tab.id
-                  ? 'bg-primary-100 text-primary-600'
-                  : 'bg-gray-100 text-gray-600'
-              }`}>
-                {tab.count}
-              </span>
-            </button>
-          ))}
-        </nav>
-      </div>
-
-      {/* Search and Filters */}
       <div className="card">
         <div className="p-6">
           <div className="flex flex-col sm:flex-row gap-4">
@@ -278,123 +114,95 @@ export default function EnterprisesPage() {
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Rechercher une entreprise..."
+                  placeholder="Rechercher par nom, SIRET ou email..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={e => setSearchTerm(e.target.value)}
                   className="pl-10 form-input"
                 />
               </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <button className="btn-secondary">
-                <Filter className="h-4 w-4" />
-                Filtres
-              </button>
-              <button className="btn-secondary">
-                <Calendar className="h-4 w-4" />
-                Période
-              </button>
-            </div>
+            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="form-input">
+              <option value="all">Tous les statuts</option>
+              <option value="active">Actives</option>
+              <option value="suspended">Suspendues</option>
+              <option value="terminated">Résiliées</option>
+            </select>
+            <button className="btn-secondary">
+              <Download className="h-4 w-4" />
+              Exporter
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Enterprises Table */}
       <div className="card">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead>
-              <tr>
-                <th className="table-header">Entreprise</th>
-                <th className="table-header">Contact</th>
-                <th className="table-header">Forme juridique</th>
-                <th className="table-header">SIRET</th>
-                <th className="table-header">Ville</th>
-                <th className="table-header">Statut</th>
-                <th className="table-header">Utilisateurs</th>
-                <th className="table-header">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredEnterprises.map((enterprise) => (
-                <tr key={enterprise.id} className="hover:bg-gray-50">
-                  <td className="table-cell">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">{enterprise.name}</div>
-                      <div className="text-sm text-gray-500">
-                        Domicilié le {new Date(enterprise.domiciliationDate).toLocaleDateString('fr-FR')}
-                      </div>
-                    </div>
-                  </td>
-                  <td className="table-cell">
-                    <div>
-                      <div className="text-sm text-gray-900">{enterprise.contactPerson}</div>
-                      <div className="text-sm text-gray-500">{enterprise.email}</div>
-                      {enterprise.phone && (
-                        <div className="text-sm text-gray-500">{enterprise.phone}</div>
-                      )}
-                    </div>
-                  </td>
-                  <td className="table-cell">
-                    <div className="text-sm text-gray-900">{enterprise.legalForm || '-'}</div>
-                  </td>
-                  <td className="table-cell">
-                    <div className="text-sm text-gray-900 font-mono">{enterprise.siret || '-'}</div>
-                  </td>
-                  <td className="table-cell">
-                    <div className="text-sm text-gray-900">{enterprise.city}</div>
-                  </td>
-                  <td className="table-cell">
-                    <span className={`status-badge ${getStatusColor(enterprise.status)}`}>
-                      {getStatusLabel(enterprise.status)}
-                    </span>
-                  </td>
-                  <td className="table-cell">
-                    <div className="flex items-center">
-                      <Users className="h-4 w-4 text-gray-400 mr-1" />
-                      <span className="text-sm text-gray-900">{enterprise.usersCount}</span>
-                    </div>
-                  </td>
-                  <td className="table-cell">
-                    <div className="flex items-center space-x-2">
-                      <Link
-                        href={`/dashboard/entreprises/${enterprise.id}`}
-                        className="p-1 text-gray-400 hover:text-gray-600"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Link>
-                      <button className="p-1 text-gray-400 hover:text-gray-600">
-                        <Edit className="h-4 w-4" />
-                      </button>
-                      <button className="p-1 text-gray-400 hover:text-gray-600">
-                        <MoreVertical className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination */}
-        <div className="px-6 py-3 border-t border-gray-200">
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-700">
-              Affichage de 1 à {filteredEnterprises.length} sur {filteredEnterprises.length} entreprises
-            </div>
-            <div className="flex items-center space-x-2">
-              <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">
-                Précédent
-              </button>
-              <button className="px-3 py-1 text-sm bg-primary-600 text-white rounded">
-                1
-              </button>
-              <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50">
-                Suivant
-              </button>
-            </div>
+        {loading ? (
+          <div className="flex items-center justify-center p-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
           </div>
+        ) : error ? (
+          <div className="p-6 bg-red-50 text-red-700">{error}</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead>
+                <tr>
+                  <th className="table-header">Entreprise</th>
+                  <th className="table-header">Contact</th>
+                  <th className="table-header">Centre</th>
+                  <th className="table-header">Statut</th>
+                  <th className="table-header">Domiciliation</th>
+                  <th className="table-header">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {enterprises.length === 0 && (
+                  <tr><td colSpan={6} className="p-8 text-center text-gray-500">Aucune entreprise trouvée.</td></tr>
+                )}
+                {enterprises.map(e => (
+                  <tr key={e.id} className="hover:bg-gray-50">
+                    <td className="table-cell">
+                      <div className="flex items-center">
+                        <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
+                          <Building className="h-5 w-5 text-primary-600" />
+                        </div>
+                        <div className="ml-4">
+                          <div className="text-sm font-medium text-gray-900">{e.name}</div>
+                          <div className="text-sm text-gray-500">{e.legalForm || '—'} {e.siret ? `· ${e.siret}` : ''}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="table-cell">
+                      <div className="text-sm text-gray-900">{e.contactPerson || '—'}</div>
+                      <div className="text-xs text-gray-500">{e.email || ''}</div>
+                    </td>
+                    <td className="table-cell">{e.center?.name || '—'}</td>
+                    <td className="table-cell">
+                      <span className={`status-badge ${statusColor(e.status)}`}>{statusLabel(e.status)}</span>
+                    </td>
+                    <td className="table-cell">
+                      {e.domiciliationDate
+                        ? new Date(e.domiciliationDate).toLocaleDateString('fr-FR')
+                        : new Date(e.createdAt).toLocaleDateString('fr-FR')}
+                    </td>
+                    <td className="table-cell">
+                      <div className="flex items-center space-x-2">
+                        <Link href={`/dashboard/entreprises/${e.id}`} className="p-1 text-gray-400 hover:text-gray-600">
+                          <Eye className="h-4 w-4" />
+                        </Link>
+                        <button className="p-1 text-gray-400 hover:text-gray-600"><Edit className="h-4 w-4" /></button>
+                        <button className="p-1 text-red-400 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <div className="px-6 py-3 border-t border-gray-200 text-sm text-gray-700">
+          {enterprises.length} entreprise(s) affichée(s) sur {total}
         </div>
       </div>
     </div>
