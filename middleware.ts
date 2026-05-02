@@ -68,6 +68,6 @@ export default withAuth(
 export const config = {
   matcher: [
     '/dashboard/:path*',
-    '/api/((?!auth).*)',
+    '/api/((?!auth|debug).*)',
   ],
 }
