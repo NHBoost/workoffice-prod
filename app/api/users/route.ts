@@ -11,7 +11,7 @@ const createUserSchema = z.object({
   password: z.string().min(6, 'Password must be at least 6 characters'),
   role: z.enum(['ADMIN', 'MANAGER', 'USER']),
   phone: z.string().optional(),
-  centerId: z.string().min(1, 'Center is required'),
+  centerId: z.string().optional().nullable(),
   isActive: z.boolean().default(true),
 })
 
