@@ -1,6 +1,6 @@
 'use client'
 
-import { Menu, Search, Moon, Sun, Command as CommandIcon } from 'lucide-react'
+import { Menu, Search, Moon, Sun, Command as CommandIcon, LogOut } from 'lucide-react'
 import { Breadcrumbs } from './Breadcrumbs'
 import { NotificationCenter } from './NotificationCenter'
 import { QuickActions } from './QuickActions'
@@ -91,6 +91,16 @@ export function Header({ onMobileMenuOpen }: HeaderProps) {
             </button>
 
             <NotificationCenter />
+
+            {/* Bouton Déconnexion direct dans le Header (lien HTML natif, sans JS) */}
+            <a
+              href="/api/auth/force-logout?callbackUrl=/auth/login"
+              className="inline-flex items-center justify-center h-9 w-9 rounded-lg text-text-muted hover:text-danger hover:bg-danger-soft transition-colors"
+              aria-label="Se déconnecter"
+              title="Se déconnecter"
+            >
+              <LogOut className="h-[18px] w-[18px]" strokeWidth={1.75} />
+            </a>
           </div>
         </div>
       </header>

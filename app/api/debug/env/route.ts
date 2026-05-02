@@ -20,6 +20,8 @@ export async function GET() {
     NEXTAUTH_URL: check('NEXTAUTH_URL'),
     NODE_ENV: process.env.NODE_ENV,
     VERCEL_URL: process.env.VERCEL_URL ?? null,
+    VERCEL_GIT_COMMIT_SHA: process.env.VERCEL_GIT_COMMIT_SHA ?? null,
+    VERCEL_GIT_COMMIT_MESSAGE: process.env.VERCEL_GIT_COMMIT_MESSAGE ?? null,
     timestamp: new Date().toISOString(),
   })
 }
