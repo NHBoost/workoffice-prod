@@ -77,15 +77,14 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   const [showUserMenu, setShowUserMenu] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
 
-  // Fermer le menu sur clic extérieur
+  // Fermer le menu sur Escape (le clic outside est géré par un backdrop dédié)
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
-        setShowUserMenu(false)
-      }
+    if (!showUserMenu) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowUserMenu(false)
     }
-    if (showUserMenu) document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
   }, [showUserMenu])
 
   // Auto-close mobile sur changement de route
@@ -229,9 +228,19 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
         )}
       </button>
 
-      {/* Dropdown menu */}
+      {/* Backdrop pour fermer en cliquant ailleurs (z-40) */}
       {showUserMenu && !collapsed && (
-        <div className="absolute bottom-full left-3 right-3 mb-2 bg-surface border border-border rounded-xl shadow-soft-xl overflow-hidden animate-slide-up">
+        <button
+          aria-label="Fermer le menu"
+          onClick={() => setShowUserMenu(false)}
+          className="fixed inset-0 z-40 cursor-default"
+          tabIndex={-1}
+        />
+      )}
+
+      {/* Dropdown menu (z-50, au-dessus du backdrop) */}
+      {showUserMenu && !collapsed && (
+        <div className="absolute bottom-full left-3 right-3 mb-2 bg-surface border border-border rounded-xl shadow-soft-xl overflow-hidden animate-slide-up z-50">
           <div className="p-3 border-b border-border bg-surface-2/40">
             <div className="flex items-center justify-between mb-1">
               <p className="text-sm font-medium text-text truncate">{session?.user?.name}</p>
