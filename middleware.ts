@@ -7,7 +7,6 @@ import { NextResponse } from 'next/server'
  */
 const ADMIN_ONLY_ROUTES = [
   '/dashboard/centers',
-  '/dashboard/settings',
   '/dashboard/users/add',
   '/api/centers',
 ]

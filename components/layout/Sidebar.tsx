@@ -244,7 +244,8 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
           <ul className="p-1.5">
             <li>
               <Link
-                href="/dashboard/settings"
+                href="/dashboard/profile"
+                onClick={() => setShowUserMenu(false)}
                 className="flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm text-text-muted hover:text-text hover:bg-surface-2 transition-colors"
               >
                 <UserIcon className="h-4 w-4" />
@@ -254,6 +255,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             <li>
               <Link
                 href="/dashboard/settings"
+                onClick={() => setShowUserMenu(false)}
                 className="flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm text-text-muted hover:text-text hover:bg-surface-2 transition-colors"
               >
                 <Settings className="h-4 w-4" />
@@ -263,7 +265,10 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             <li className="my-1 h-px bg-border mx-2" />
             <li>
               <button
-                onClick={() => signOut({ callbackUrl: '/auth/login' })}
+                onClick={async () => {
+                  setShowUserMenu(false)
+                  await signOut({ callbackUrl: '/auth/login', redirect: true })
+                }}
                 className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm text-danger hover:bg-danger-soft transition-colors"
               >
                 <LogOut className="h-4 w-4" />
