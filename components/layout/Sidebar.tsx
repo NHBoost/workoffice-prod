@@ -267,7 +267,16 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
               <button
                 onClick={async () => {
                   setShowUserMenu(false)
-                  await signOut({ callbackUrl: '/auth/login', redirect: true })
+                  try {
+                    // 1) Tentative signOut NextAuth standard
+                    await signOut({ callbackUrl: '/auth/login', redirect: false })
+                  } catch (err) {
+                    // ignore
+                  }
+                  // 2) Fallback : route force-logout (clear cookies manuellement + redirect)
+                  // Toujours appelée pour garantir une déconnexion robuste,
+                  // même si signOut() a échoué (NEXTAUTH_URL manquant, etc.)
+                  window.location.href = '/api/auth/force-logout?callbackUrl=/auth/login'
                 }}
                 className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm text-danger hover:bg-danger-soft transition-colors"
               >
