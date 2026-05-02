@@ -2,7 +2,7 @@
 
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { Header } from '@/components/layout/Header'
 
@@ -13,12 +13,21 @@ export default function DashboardLayout({
 }) {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const [mobileOpen, setMobileOpen] = useState(false)
 
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.push('/auth/login')
     }
   }, [status, router])
+
+  // Restore dark mode preference au chargement
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('theme')
+      if (saved === 'dark') document.documentElement.classList.add('dark')
+    } catch {}
+  }, [])
 
   if (status === 'loading') {
     return (
@@ -33,11 +42,11 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="h-screen bg-gray-50">
+    <div className="h-screen bg-gray-50 dark:bg-gray-950">
       <div className="flex h-full">
-        <Sidebar />
+        <Sidebar mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)} />
         <div className="flex-1 flex flex-col overflow-hidden">
-          <Header />
+          <Header onMobileMenuOpen={() => setMobileOpen(true)} />
           <main className="flex-1 overflow-y-auto">
             <div className="h-full">
               {children}

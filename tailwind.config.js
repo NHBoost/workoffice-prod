@@ -1,5 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  darkMode: 'class',
   content: [
     require('path').join(__dirname, 'pages/**/*.{js,ts,jsx,tsx,mdx}'),
     require('path').join(__dirname, 'components/**/*.{js,ts,jsx,tsx,mdx}'),

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { rateLimit, getClientIP } from '@/lib/rate-limit'
 import { z } from 'zod'
 
 const schema = z.object({
@@ -15,6 +16,16 @@ const schema = z.object({
  * On retourne TOUJOURS un succès pour ne pas leak l'existence d'un email.
  */
 export async function POST(request: NextRequest) {
+  // Rate limit : 5 demandes par 15 min par IP
+  const ip = getClientIP(request)
+  const rl = rateLimit(`forgot:${ip}`, { max: 5, window: 15 * 60_000 })
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Trop de tentatives. Réessayez plus tard.' },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfter) } }
+    )
+  }
+
   try {
     const body = await request.json()
     const { email } = schema.parse(body)
