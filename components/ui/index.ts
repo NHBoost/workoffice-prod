@@ -38,3 +38,5 @@ export { Avatar, AvatarStack } from './Avatar'
 export { EmptyState } from './EmptyState'
 
 export { PageHeader } from './PageHeader'
+
+export { KpiCard, StatGrid } from './KpiCard'
