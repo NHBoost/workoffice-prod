@@ -264,25 +264,19 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             </li>
             <li className="my-1 h-px bg-border mx-2" />
             <li>
-              <button
-                onClick={async () => {
-                  setShowUserMenu(false)
-                  try {
-                    // 1) Tentative signOut NextAuth standard
-                    await signOut({ callbackUrl: '/auth/login', redirect: false })
-                  } catch (err) {
-                    // ignore
-                  }
-                  // 2) Fallback : route force-logout (clear cookies manuellement + redirect)
-                  // Toujours appelée pour garantir une déconnexion robuste,
-                  // même si signOut() a échoué (NEXTAUTH_URL manquant, etc.)
-                  window.location.href = '/api/auth/force-logout?callbackUrl=/auth/login'
-                }}
+              {/*
+                Lien direct vers force-logout : navigation HTML native,
+                aucune dépendance JS / NextAuth / cookies de session.
+                Marche même si signOut() échoue, si JS est bloqué, ou si
+                NEXTAUTH_URL est manquant côté Vercel.
+              */}
+              <a
+                href="/api/auth/force-logout?callbackUrl=/auth/login"
                 className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm text-danger hover:bg-danger-soft transition-colors"
               >
                 <LogOut className="h-4 w-4" />
                 Se déconnecter
-              </button>
+              </a>
             </li>
           </ul>
         </div>
