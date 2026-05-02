@@ -3,20 +3,15 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import {
-  Send,
-  Plus,
-  Search,
-  Mail,
-  Eye,
-  MousePointer,
-  Calendar,
-  Loader2,
-  Users,
-  Edit,
-  Trash2,
-  Play,
+  Send, Plus, Mail, Eye, MousePointer, Calendar, Users, Edit, Trash2,
+  Play, Sparkles,
 } from 'lucide-react'
+import {
+  PageHeader, KpiCard, StatGrid, FilterBar, ConfirmDialog, Button,
+  Card, Badge, StatusBadge, EmptyState, Spinner, ActionMenu,
+} from '@/components/ui'
 import toast from 'react-hot-toast'
+import { cn } from '@/lib/utils'
 
 interface Campaign {
   id: string
@@ -32,86 +27,66 @@ interface Campaign {
   clickedCount: number
 }
 
-const statusLabel = (s: string) =>
-  ({ DRAFT: 'Brouillon', SCHEDULED: 'Programmée', SENT: 'Envoyée', CANCELLED: 'Annulée' }[s] || s)
-const statusColor = (s: string) =>
-  ({
-    DRAFT: 'bg-gray-100 text-gray-700',
-    SCHEDULED: 'bg-blue-100 text-blue-800',
-    SENT: 'bg-green-100 text-green-800',
-    CANCELLED: 'bg-red-100 text-red-800',
-  }[s] || 'bg-gray-100 text-gray-700')
-
 const pct = (a: number, b: number) => (b === 0 ? 0 : Math.round((a / b) * 100))
 
 export default function MailingPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [actingId, setActingId] = useState<string | null>(null)
+  const [confirmSend, setConfirmSend] = useState<Campaign | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<Campaign | null>(null)
 
   const fetchCampaigns = () => {
     setLoading(true)
     fetch('/api/mailing')
       .then(r => (r.ok ? r.json() : Promise.reject(r)))
-      .then(d => {
-        setCampaigns(d.campaigns || [])
-        setError(null)
-      })
-      .catch(() => setError('Erreur lors du chargement des campagnes'))
+      .then(d => setCampaigns(d.campaigns || []))
+      .catch(() => toast.error('Erreur'))
       .finally(() => setLoading(false))
   }
-
   useEffect(fetchCampaigns, [])
 
-  const sendNow = async (c: Campaign) => {
-    if (!confirm(`Envoyer la campagne "${c.name}" maintenant ?`)) return
-    setActingId(c.id)
+  const sendNow = async () => {
+    if (!confirmSend) return
+    setActingId(confirmSend.id)
     try {
-      const res = await fetch(`/api/mailing/${c.id}`, {
+      const res = await fetch(`/api/mailing/${confirmSend.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'SENT' }),
       })
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}))
-        toast.error(d.error || 'Erreur')
-        return
-      }
-      toast.success(`Campagne "${c.name}" envoyée`)
+      if (!res.ok) throw new Error()
+      toast.success(`Campagne envoyée`)
+      setConfirmSend(null)
       fetchCampaigns()
     } catch {
-      toast.error('Erreur réseau')
+      toast.error('Erreur')
     } finally {
       setActingId(null)
     }
   }
 
-  const handleDelete = async (c: Campaign) => {
-    if (!confirm(`Supprimer la campagne "${c.name}" ?`)) return
-    setActingId(c.id)
+  const handleDelete = async () => {
+    if (!confirmDelete) return
+    setActingId(confirmDelete.id)
     try {
-      const res = await fetch(`/api/mailing/${c.id}`, { method: 'DELETE' })
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}))
-        toast.error(d.error || 'Erreur')
-        return
-      }
+      const res = await fetch(`/api/mailing/${confirmDelete.id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error()
       toast.success('Campagne supprimée')
+      setConfirmDelete(null)
       fetchCampaigns()
     } catch {
-      toast.error('Erreur réseau')
+      toast.error('Erreur')
     } finally {
       setActingId(null)
     }
   }
 
-  const filtered = campaigns.filter(
-    c =>
-      !search ||
-      c.name.toLowerCase().includes(search.toLowerCase()) ||
-      c.subject.toLowerCase().includes(search.toLowerCase())
+  const filtered = campaigns.filter(c =>
+    !search ||
+    c.name.toLowerCase().includes(search.toLowerCase()) ||
+    c.subject.toLowerCase().includes(search.toLowerCase())
   )
 
   const totalSent = campaigns.reduce((s, c) => s + c.sentCount, 0)
@@ -119,163 +94,185 @@ export default function MailingPage() {
   const totalClicked = campaigns.reduce((s, c) => s + c.clickedCount, 0)
   const totalRecipients = campaigns.reduce((s, c) => s + c._count.recipients, 0)
 
-  const stats = [
-    { title: 'Campagnes', value: campaigns.length, icon: Send, color: 'blue' },
-    { title: 'Destinataires', value: totalRecipients, icon: Users, color: 'purple' },
-    { title: 'Taux ouverture', value: `${pct(totalOpened, totalSent)} %`, icon: Eye, color: 'green' },
-    { title: 'Taux clic', value: `${pct(totalClicked, totalSent)} %`, icon: MousePointer, color: 'orange' },
-  ]
-
-  const StatCard = ({ title, value, icon: Icon, color }: any) => {
-    const cls: Record<string, string> = {
-      blue: 'bg-blue-500',
-      green: 'bg-green-500',
-      purple: 'bg-purple-500',
-      orange: 'bg-orange-500',
-    }
-    return (
-      <div className="stat-card">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-gray-600">{title}</p>
-            <p className="text-2xl font-bold text-gray-900">
-              {typeof value === 'number' ? value.toLocaleString('fr-FR') : value}
-            </p>
-          </div>
-          <div className={`p-3 rounded-full ${cls[color]}`}>
-            <Icon className="h-6 w-6 text-white" />
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Mailing</h1>
-          <p className="text-gray-600">Créez et suivez vos campagnes email</p>
-        </div>
-        <Link href="/dashboard/mailing/nouveau" className="btn-primary">
-          <Plus className="h-5 w-5" />
-          Nouvelle campagne
-        </Link>
-      </div>
+    <div className="p-6 space-y-6 animate-fade-in">
+      <PageHeader
+        title="Mailing"
+        description="Créez, envoyez et suivez vos campagnes email"
+        actions={
+          <Link href="/dashboard/mailing/nouveau">
+            <Button iconLeft={<Plus className="h-4 w-4" />}>Nouvelle campagne</Button>
+          </Link>
+        }
+      />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((s, i) => <StatCard key={i} {...s} />)}
-      </div>
+      <StatGrid cols={4}>
+        <KpiCard label="Campagnes" value={campaigns.length} icon={Send} tone="electric" loading={loading} />
+        <KpiCard label="Destinataires" value={totalRecipients} icon={Users} tone="info" loading={loading} />
+        <KpiCard
+          label="Taux ouverture"
+          value={`${pct(totalOpened, totalSent)}%`}
+          sublabel={`${totalOpened} ouvertures`}
+          icon={Eye}
+          tone="success"
+          loading={loading}
+        />
+        <KpiCard
+          label="Taux clic"
+          value={`${pct(totalClicked, totalSent)}%`}
+          sublabel={`${totalClicked} clics`}
+          icon={MousePointer}
+          tone="gold"
+          loading={loading}
+        />
+      </StatGrid>
 
-      <div className="card p-6">
-        <div className="relative max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Rechercher (nom, sujet)..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="pl-10 form-input"
-          />
-        </div>
-      </div>
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Rechercher une campagne..."
+      />
 
       {loading ? (
-        <div className="flex items-center justify-center p-12">
-          <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
+        <div className="card p-12 text-center">
+          <Spinner size="lg" />
         </div>
-      ) : error ? (
-        <div className="card p-6 bg-red-50 text-red-700">{error}</div>
+      ) : filtered.length === 0 ? (
+        <Card className="p-2">
+          <EmptyState
+            icon={Send}
+            title="Aucune campagne"
+            description="Lance ta première campagne pour engager tes domiciliés et augmenter ton CA."
+            action={
+              <Link href="/dashboard/mailing/nouveau">
+                <Button iconLeft={<Plus className="h-4 w-4" />}>Créer ma première campagne</Button>
+              </Link>
+            }
+          />
+        </Card>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {filtered.length === 0 && (
-            <div className="col-span-full card p-12 text-center text-gray-500">
-              Aucune campagne trouvée.
-            </div>
-          )}
-          {filtered.map(c => (
-            <div key={c.id} className="card hover:shadow-lg transition-shadow">
-              <div className="p-6">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {filtered.map(c => {
+            const openRate = pct(c.openedCount, c.sentCount)
+            const clickRate = pct(c.clickedCount, c.sentCount)
+
+            return (
+              <Card key={c.id} variant="default" className="group p-6 hover:shadow-soft-md transition-all duration-300">
+                {/* Header card */}
+                <div className="flex items-start justify-between gap-3 mb-4">
+                  <Link href={`/dashboard/mailing/${c.id}`} className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <Mail className="h-5 w-5 text-primary-600" />
-                      <h3 className="text-lg font-semibold text-gray-900">{c.name}</h3>
+                      <div className="h-9 w-9 shrink-0 rounded-lg bg-electric-50 text-electric-600 dark:bg-electric-900/30 dark:text-electric-400 inline-flex items-center justify-center group-hover:bg-electric-600 group-hover:text-white transition-colors">
+                        <Mail className="h-4 w-4" strokeWidth={1.75} />
+                      </div>
+                      <h3 className="text-md font-semibold tracking-tight text-text truncate">{c.name}</h3>
                     </div>
-                    <p className="text-sm text-gray-500 ml-7 italic">"{c.subject}"</p>
-                  </div>
-                  <span className={`status-badge ${statusColor(c.status)}`}>
-                    {statusLabel(c.status)}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2 text-center pt-4 border-t border-gray-100 mb-4">
-                  <div>
-                    <Users className="h-4 w-4 mx-auto text-gray-400 mb-1" />
-                    <p className="text-sm font-bold text-gray-900">{c._count.recipients}</p>
-                    <p className="text-xs text-gray-500">Destinataires</p>
-                  </div>
-                  <div>
-                    <Eye className="h-4 w-4 mx-auto text-green-500 mb-1" />
-                    <p className="text-sm font-bold text-gray-900">
-                      {pct(c.openedCount, c.sentCount)} %
-                    </p>
-                    <p className="text-xs text-gray-500">{c.openedCount} ouvertures</p>
-                  </div>
-                  <div>
-                    <MousePointer className="h-4 w-4 mx-auto text-orange-500 mb-1" />
-                    <p className="text-sm font-bold text-gray-900">
-                      {pct(c.clickedCount, c.sentCount)} %
-                    </p>
-                    <p className="text-xs text-gray-500">{c.clickedCount} clics</p>
-                  </div>
-                </div>
-
-                <div className="text-xs text-gray-500 flex items-center gap-1 mb-4">
-                  <Calendar className="h-3 w-3" />
-                  {c.sentAt
-                    ? `Envoyée le ${new Date(c.sentAt).toLocaleDateString('fr-FR')}`
-                    : c.scheduledAt
-                    ? `Programmée pour le ${new Date(c.scheduledAt).toLocaleDateString('fr-FR')}`
-                    : `Créée le ${new Date(c.createdAt).toLocaleDateString('fr-FR')}`}
-                </div>
-
-                <div className="flex justify-end gap-2 pt-4 border-t border-gray-100">
-                  <Link
-                    href={`/dashboard/mailing/${c.id}`}
-                    className="p-2 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100"
-                  >
-                    <Eye className="h-4 w-4" />
+                    <p className="text-xs text-text-muted truncate ml-11 italic">"{c.subject}"</p>
                   </Link>
-                  {c.status === 'DRAFT' && (
-                    <>
-                      <button
-                        onClick={() => sendNow(c)}
-                        disabled={actingId === c.id}
-                        className="px-3 py-1 text-xs bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50 inline-flex items-center gap-1"
-                      >
-                        {actingId === c.id ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <Play className="h-3 w-3" />
-                        )}
-                        Envoyer
-                      </button>
-                    </>
-                  )}
-                  <button
-                    onClick={() => handleDelete(c)}
-                    disabled={actingId === c.id}
-                    className="p-2 text-red-400 hover:text-red-600 rounded hover:bg-red-50"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <StatusBadge status={c.status} />
+                    <ActionMenu
+                      items={[
+                        { label: 'Voir détails', icon: Eye, href: `/dashboard/mailing/${c.id}` },
+                        ...(c.status === 'DRAFT'
+                          ? [{ label: 'Envoyer maintenant', icon: Play, onClick: () => setConfirmSend(c) }]
+                          : []),
+                        'divider',
+                        { label: 'Supprimer', icon: Trash2, danger: true, onClick: () => setConfirmDelete(c) },
+                      ]}
+                    />
+                  </div>
                 </div>
-              </div>
-            </div>
-          ))}
+
+                {/* Stats grid */}
+                <div className="grid grid-cols-3 gap-3 py-4 border-y border-border">
+                  <div className="text-center">
+                    <Users className="h-3.5 w-3.5 mx-auto text-text-subtle mb-1" />
+                    <p className="text-md font-semibold text-text nums-tabular">{c._count.recipients}</p>
+                    <p className="text-2xs text-text-subtle">destinataires</p>
+                  </div>
+                  <div className="text-center border-x border-border">
+                    <Eye className="h-3.5 w-3.5 mx-auto text-success mb-1" />
+                    <p className="text-md font-semibold text-text nums-tabular">{openRate}%</p>
+                    <p className="text-2xs text-text-subtle">ouverture</p>
+                  </div>
+                  <div className="text-center">
+                    <MousePointer className="h-3.5 w-3.5 mx-auto text-gold-500 mb-1" />
+                    <p className="text-md font-semibold text-text nums-tabular">{clickRate}%</p>
+                    <p className="text-2xs text-text-subtle">clic</p>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="flex items-center justify-between gap-3 mt-4">
+                  <div className="text-xs text-text-muted flex items-center gap-1.5">
+                    <Calendar className="h-3 w-3" />
+                    {c.sentAt
+                      ? `Envoyée le ${new Date(c.sentAt).toLocaleDateString('fr-FR')}`
+                      : c.scheduledAt
+                      ? `Programmée pour le ${new Date(c.scheduledAt).toLocaleDateString('fr-FR')}`
+                      : `Créée le ${new Date(c.createdAt).toLocaleDateString('fr-FR')}`}
+                  </div>
+                  {c.status === 'DRAFT' && (
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      iconLeft={<Play className="h-3.5 w-3.5" />}
+                      onClick={() => setConfirmSend(c)}
+                    >
+                      Envoyer
+                    </Button>
+                  )}
+                </div>
+
+                {/* Performance bar (visuelle) */}
+                {c.status === 'SENT' && c.sentCount > 0 && (
+                  <div className="mt-4 -mx-6 -mb-6 px-6 py-3 bg-surface-2/40 border-t border-border">
+                    <div className="flex items-center gap-1 mb-1">
+                      <Sparkles className="h-3 w-3 text-gold-500" />
+                      <span className="text-2xs font-medium text-text-muted uppercase tracking-wider">Performance</span>
+                    </div>
+                    <div className="flex h-1.5 rounded-full overflow-hidden bg-surface">
+                      <div
+                        className="bg-success transition-all"
+                        style={{ width: `${openRate}%` }}
+                        title={`${openRate}% ouverture`}
+                      />
+                      <div
+                        className="bg-gold-500 transition-all"
+                        style={{ width: `${Math.min(clickRate, 100 - openRate)}%` }}
+                        title={`${clickRate}% clic`}
+                      />
+                    </div>
+                  </div>
+                )}
+              </Card>
+            )
+          })}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!confirmSend}
+        onClose={() => setConfirmSend(null)}
+        onConfirm={sendNow}
+        title={`Envoyer "${confirmSend?.name}" ?`}
+        description={`La campagne sera envoyée à ${confirmSend?._count.recipients} destinataire(s). Cette action est irréversible.`}
+        confirmLabel="Envoyer maintenant"
+        tone="info"
+        loading={!!actingId}
+      />
+
+      <ConfirmDialog
+        open={!!confirmDelete}
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={handleDelete}
+        title={`Supprimer "${confirmDelete?.name}" ?`}
+        description="La campagne et tous les destinataires associés seront supprimés."
+        confirmLabel="Supprimer"
+        tone="danger"
+        loading={!!actingId}
+      />
     </div>
   )
 }

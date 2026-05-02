@@ -50,3 +50,6 @@ export type { ActionItem } from './ActionMenu'
 export { Pagination } from './Pagination'
 
 export { FilterBar } from './FilterBar'
+
+export { Drawer } from './Drawer'
+export { Modal, ConfirmDialog } from './Modal'
