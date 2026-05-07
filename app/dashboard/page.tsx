@@ -2,15 +2,19 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import {
   Euro, Users, Building, Calendar, Package, Mail, AlertTriangle,
   TrendingUp, Activity, Plus, Receipt, MapPin, CalendarDays,
   ArrowRight, Sparkles, ChevronRight, Zap, Crown, Gauge as GaugeIcon,
   Clock, Award, Star, Target, RefreshCw, BarChart3, Wallet,
 } from 'lucide-react'
-import {
-  ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-} from 'recharts'
+import { Skeleton } from '@/components/ui'
+
+const RevenueChart = dynamic(() => import('@/components/charts/RevenueChart'), {
+  ssr: false,
+  loading: () => <Skeleton className="h-[260px] w-full" />,
+})
 import {
   PageHeader, KpiCard, StatGrid, Card, Badge, StatusBadge, Avatar,
   Spinner, EmptyState, Gauge, LiveIndicator, RoleBadge,
@@ -340,32 +344,7 @@ export default function CockpitDashboard() {
               {kpis.revenue.delta >= 0 ? `+${kpis.revenue.delta}%` : `${kpis.revenue.delta}%`}
             </Badge>
           </div>
-          <ResponsiveContainer width="100%" height={260}>
-            <AreaChart data={revenueChart}>
-              <defs>
-                <linearGradient id="revenue-grad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#C9A227" stopOpacity={0.35} />
-                  <stop offset="100%" stopColor="#C9A227" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--border))" vertical={false} />
-              <XAxis dataKey="month" stroke="rgb(var(--text-subtle))" fontSize={11} axisLine={false} tickLine={false} />
-              <YAxis stroke="rgb(var(--text-subtle))" fontSize={11} axisLine={false} tickLine={false}
-                tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : `${v}`} />
-              <Tooltip
-                contentStyle={{
-                  background: 'rgb(var(--surface))',
-                  border: '1px solid rgb(var(--border))',
-                  borderRadius: 12,
-                  boxShadow: '0 10px 25px rgba(0,0,0,0.08)',
-                  fontSize: 12,
-                }}
-                formatter={(v: number) => [formatCurrency(v), 'Revenus']}
-                cursor={{ stroke: '#C9A227', strokeWidth: 1, strokeDasharray: '3 3' }}
-              />
-              <Area type="monotone" dataKey="value" stroke="#C9A227" strokeWidth={2.5} fill="url(#revenue-grad)" />
-            </AreaChart>
-          </ResponsiveContainer>
+          <RevenueChart data={revenueChart} />
         </Card>
 
         {/* Top entreprises */}

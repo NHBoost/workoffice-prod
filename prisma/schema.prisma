@@ -63,6 +63,9 @@ model User {
   sentMessages         Message[]             @relation("SentMessages")
   receivedMessages     Message[]             @relation("ReceivedMessages")
 
+  @@index([centerId])
+  @@index([role])
+  @@index([isActive])
   @@map("users")
 }
 
@@ -118,6 +121,9 @@ model Enterprise {
   packages          Package[]
   mails             Mail[]
 
+  @@index([centerId])
+  @@index([status])
+  @@index([createdAt])
   @@map("enterprises")
 }
 
@@ -136,6 +142,8 @@ model MeetingRoom {
   center       Center        @relation(fields: [centerId], references: [id])
   reservations Reservation[]
 
+  @@index([centerId])
+  @@index([isActive])
   @@map("meeting_rooms")
 }
 
@@ -156,6 +164,7 @@ model CoworkingSpace {
   center        Center         @relation(fields: [centerId], references: [id])
   subscriptions Subscription[]
 
+  @@index([centerId])
   @@map("coworking_spaces")
 }
 
@@ -175,6 +184,11 @@ model Reservation {
   user        User        @relation(fields: [userId], references: [id])
   meetingRoom MeetingRoom @relation(fields: [meetingRoomId], references: [id])
 
+  @@index([userId])
+  @@index([meetingRoomId])
+  @@index([status])
+  @@index([startTime])
+  @@index([meetingRoomId, startTime])
   @@map("reservations")
 }
 
@@ -194,6 +208,9 @@ model Subscription {
   coworkingSpace  CoworkingSpace? @relation(fields: [coworkingSpaceId], references: [id])
   invoices        Invoice[]
 
+  @@index([enterpriseId])
+  @@index([coworkingSpaceId])
+  @@index([isActive])
   @@map("subscriptions")
 }
 
@@ -215,6 +232,10 @@ model Package {
   center        Center                @relation(fields: [centerId], references: [id])
   notifications PackageNotification[]
 
+  @@index([centerId])
+  @@index([enterpriseId])
+  @@index([status])
+  @@index([receivedAt])
   @@map("packages")
 }
 
@@ -248,6 +269,10 @@ model Mail {
   center        Center             @relation(fields: [centerId], references: [id])
   notifications MailNotification[]
 
+  @@index([centerId])
+  @@index([enterpriseId])
+  @@index([status])
+  @@index([receivedAt])
   @@map("mails")
 }
 
@@ -282,6 +307,11 @@ model Invoice {
   enterprise   Enterprise   @relation(fields: [enterpriseId], references: [id])
   subscription Subscription? @relation(fields: [subscriptionId], references: [id])
 
+  @@index([enterpriseId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([paidAt])
+  @@index([status, paidAt])
   @@map("invoices")
 }
 
@@ -299,6 +329,7 @@ model MailingCampaign {
 
   recipients MailingRecipient[]
 
+  @@index([status])
   @@map("mailing_campaigns")
 }
 
@@ -313,6 +344,7 @@ model MailingRecipient {
 
   campaign MailingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
+  @@index([campaignId])
   @@map("mailing_recipients")
 }
 
@@ -329,6 +361,9 @@ model Message {
   sender   User @relation("SentMessages", fields: [senderId], references: [id])
   receiver User @relation("ReceivedMessages", fields: [receiverId], references: [id])
 
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([receiverId, status])
   @@map("messages")
 }
 
