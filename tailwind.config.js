@@ -91,10 +91,13 @@ module.exports = {
         info:    { DEFAULT: 'rgb(var(--info) / <alpha-value>)',    soft: 'rgb(var(--info-soft) / <alpha-value>)'    },
       },
       fontFamily: {
+        // Police par défaut de la plateforme (textes, titres, UI) : Inter
         sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
         mono: ['var(--font-mono)', 'ui-monospace', 'monospace'],
+        // Serif réservé au Logo Prestigia uniquement (Playfair Display)
         serif: ['var(--font-serif)', 'Georgia', 'Times New Roman', 'serif'],
-        display: ['var(--font-serif)', 'Georgia', 'serif'],
+        // font-display utilise Inter (cohérent avec le reste)
+        display: ['var(--font-sans)', 'system-ui', 'sans-serif'],
       },
       fontSize: {
         // Scale typographique premium
