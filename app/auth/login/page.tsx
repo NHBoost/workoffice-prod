@@ -6,11 +6,12 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import {
-  Eye, EyeOff, Sparkles, Building, Users, Shield, Activity,
+  Eye, EyeOff, Building, Users, Shield, Activity, Star,
   CheckCircle2, ArrowRight, MapPin, Calendar, Receipt, Mail,
   TrendingUp,
 } from 'lucide-react'
 import { Button, Field, Input, Checkbox, Badge } from '@/components/ui'
+import { Logo, LogoMark } from '@/components/Logo'
 import toast from 'react-hot-toast'
 
 export default function LoginPage() {
@@ -82,28 +83,15 @@ export default function LoginPage() {
         {/* Content overlay */}
         <div className="relative z-10 flex flex-col justify-between h-full p-12 text-white">
           {/* Logo */}
-          <div className="flex items-center gap-3 animate-fade-in">
-            <div className="relative h-11 w-11">
-              <div className="absolute inset-0 rounded-2xl bg-white/15 backdrop-blur-xl border border-white/20" />
-              <div className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-gold-400 ring-2 ring-ink-900" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <Sparkles className="h-5 w-5 text-white" strokeWidth={2} />
-              </div>
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-lg font-semibold tracking-tight">WorkOffice</span>
-                <Badge tone="gold" size="sm">v2.0</Badge>
-              </div>
-              <p className="text-2xs text-white/60 leading-none mt-1">Prestigia App</p>
-            </div>
+          <div className="animate-fade-in">
+            <Logo size="lg" theme="dark" />
           </div>
 
           {/* Hero center */}
           <div className="space-y-8 max-w-lg animate-slide-up">
             <div>
               <Badge size="md" className="!bg-gold-400/15 !text-gold-300 !ring-gold-400/30 backdrop-blur mb-5">
-                <Sparkles className="h-3 w-3 mr-1" />
+                <Star className="h-3 w-3 mr-1" />
                 Plateforme SaaS premium
               </Badge>
               <h1 className="text-4xl xl:text-5xl font-semibold tracking-tighter leading-[1.1]">
@@ -185,18 +173,8 @@ export default function LoginPage() {
       <div className="flex-1 flex items-center justify-center p-6 lg:p-12">
         <div className="w-full max-w-md animate-slide-up">
           {/* Logo mobile (visible < lg) */}
-          <div className="lg:hidden flex items-center justify-center gap-3 mb-10">
-            <div className="relative h-10 w-10">
-              <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-ink-700 to-ink-900 shadow-soft-md" />
-              <div className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-gold-500 ring-2 ring-ink-700" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <Sparkles className="h-4 w-4 text-white" strokeWidth={2.5} />
-              </div>
-            </div>
-            <div>
-              <div className="text-md font-semibold tracking-tight">WorkOffice</div>
-              <div className="text-2xs text-text-subtle leading-none">Prestigia App</div>
-            </div>
+          <div className="lg:hidden flex items-center justify-center mb-10">
+            <Logo size="md" theme="auto" />
           </div>
 
           <div className="mb-8">

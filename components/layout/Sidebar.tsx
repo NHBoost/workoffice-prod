@@ -8,10 +8,11 @@ import {
   LayoutDashboard, Users, Building, MapPin, CalendarDays, Laptop,
   CreditCard, Mail, Package, Send, MessageCircle, BarChart3,
   Settings, QrCode, ChevronLeft, ChevronRight, X, Wallet,
-  LogOut, User as UserIcon, Sparkles, Command,
+  LogOut, User as UserIcon, Command,
 } from 'lucide-react'
 import { cn, getInitials } from '@/lib/utils'
 import { RoleBadge } from '@/components/ui'
+import { Logo, LogoMark } from '@/components/Logo'
 import type { LucideIcon } from 'lucide-react'
 
 interface NavItem {
@@ -100,21 +101,10 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
 
   const Brand = (
     <Link href="/dashboard" className="flex items-center gap-3 group">
-      <div className="relative h-9 w-9 shrink-0">
-        {/* Logo : carré ink avec accent gold */}
-        <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-ink-700 to-ink-900 shadow-soft-md" />
-        <div className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-gold-500 ring-2 ring-ink-700 group-hover:scale-110 transition-transform" />
-        <div className="absolute inset-0 flex items-center justify-center">
-          <Sparkles className="h-4 w-4 text-white" strokeWidth={2.5} />
-        </div>
-      </div>
-      {!collapsed && (
-        <div className="min-w-0">
-          <div className="flex items-center gap-1.5">
-            <span className="text-md font-semibold tracking-tight text-text">WorkOffice</span>
-          </div>
-          <p className="text-2xs text-text-subtle leading-none mt-0.5">Prestigia App</p>
-        </div>
+      {collapsed ? (
+        <LogoMark size="md" theme="auto" />
+      ) : (
+        <Logo size="md" theme="auto" />
       )}
     </Link>
   )

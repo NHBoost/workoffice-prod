@@ -67,19 +67,21 @@ module.exports = {
           DEFAULT: '#C9A227',
         },
 
-        // Couleur historique Prestigia (conservée pour accents)
+        // Couleur primary remappée sur la palette gold Prestigia
+        // (toutes les classes bg-primary-*, text-primary-* etc. existantes
+        //  utilisent désormais le doré officiel de la marque, plus de rouge.)
         primary: {
-          50: '#FEF2F3',
-          100: '#FDE6E7',
-          200: '#FCD0D4',
-          300: '#F8A7AF',
-          400: '#F37886',
-          500: '#EA4D62',
-          600: '#DB324D',
-          700: '#C11D3A',
-          800: '#A11A33',
-          900: '#881A31',
-          DEFAULT: '#DB324D',
+          50:  '#FBF8E9',
+          100: '#F7F0CC',
+          200: '#EFE099',
+          300: '#E7D066',
+          400: '#DFBF33',
+          500: '#C9A227',
+          600: '#A1801F',
+          700: '#785F17',
+          800: '#503F0F',
+          900: '#282008',
+          DEFAULT: '#C9A227',
         },
 
         // Status sémantique
@@ -91,7 +93,8 @@ module.exports = {
       fontFamily: {
         sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
         mono: ['var(--font-mono)', 'ui-monospace', 'monospace'],
-        display: ['var(--font-sans)', 'system-ui', 'sans-serif'],
+        serif: ['var(--font-serif)', 'Georgia', 'Times New Roman', 'serif'],
+        display: ['var(--font-serif)', 'Georgia', 'serif'],
       },
       fontSize: {
         // Scale typographique premium

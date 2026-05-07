@@ -2,7 +2,8 @@
 
 import { useState, FormEvent } from 'react'
 import Link from 'next/link'
-import { Mail, ArrowLeft, CheckCircle2, Sparkles } from 'lucide-react'
+import { Mail, ArrowLeft, CheckCircle2 } from 'lucide-react'
+import { Logo } from '@/components/Logo'
 import { Button, Field, Input, Card } from '@/components/ui'
 import toast from 'react-hot-toast'
 
@@ -118,11 +119,8 @@ export default function ForgotPasswordPage() {
           )}
         </Card>
 
-        <div className="mt-6 text-center">
-          <p className="text-2xs text-text-subtle">
-            <Sparkles className="h-3 w-3 inline mr-1 text-gold-500" />
-            WorkOffice · Prestigia App
-          </p>
+        <div className="mt-6 flex justify-center">
+          <Logo size="sm" theme="auto" />
         </div>
       </div>
     </div>

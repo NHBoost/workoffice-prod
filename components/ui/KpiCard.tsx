@@ -27,7 +27,7 @@ const SPARK_COLOR: Record<Tone, string> = {
   info:     '#3B82F6',
   gold:     '#C9A227',
   electric: '#3B82F6',
-  primary:  '#DB324D',
+  primary:  '#C9A227',
 }
 
 interface KpiCardProps {

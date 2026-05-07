@@ -29,7 +29,7 @@ interface KPIs {
   subscriptionsByType: { type: string; count: number; revenue: number }[]
 }
 
-const COLORS = ['#DB324D', '#2563EB', '#16A34A', '#CA8A04', '#9333EA', '#EA580C']
+const COLORS = ['#C9A227', '#2563EB', '#16A34A', '#CA8A04', '#9333EA', '#EA580C']
 
 export default function KPIsPage() {
   const [kpis, setKpis] = useState<KPIs | null>(null)
@@ -143,8 +143,8 @@ export default function KPIsPage() {
             <AreaChart data={kpis.revenuePerMonth}>
               <defs>
                 <linearGradient id="rev" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#DB324D" stopOpacity={0.4} />
-                  <stop offset="100%" stopColor="#DB324D" stopOpacity={0} />
+                  <stop offset="0%" stopColor="#C9A227" stopOpacity={0.4} />
+                  <stop offset="100%" stopColor="#C9A227" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
@@ -154,7 +154,7 @@ export default function KPIsPage() {
               <Area
                 type="monotone"
                 dataKey="revenue"
-                stroke="#DB324D"
+                stroke="#C9A227"
                 strokeWidth={2}
                 fill="url(#rev)"
               />

@@ -17,7 +17,7 @@ interface Reservation {
   user: { id: string; name: string | null }
 }
 
-const COLORS = ['#DB324D', '#2563EB', '#16A34A', '#CA8A04', '#9333EA', '#EA580C']
+const COLORS = ['#C9A227', '#2563EB', '#16A34A', '#CA8A04', '#9333EA', '#EA580C']
 
 export default function MeetingRoomStatsPage() {
   const [reservations, setReservations] = useState<Reservation[]>([])
@@ -155,7 +155,7 @@ export default function MeetingRoomStatsPage() {
               <YAxis stroke="#9ca3af" fontSize={12} />
               <Tooltip />
               <Legend />
-              <Bar dataKey="count" fill="#DB324D" name="Réservations" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="count" fill="#C9A227" name="Réservations" radius={[4, 4, 0, 0]} />
               <Bar dataKey="hours" fill="#2563EB" name="Heures" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>

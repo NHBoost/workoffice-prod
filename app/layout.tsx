@@ -1,5 +1,5 @@
 import './globals.css'
-import { Inter, JetBrains_Mono } from 'next/font/google'
+import { Inter, JetBrains_Mono, Playfair_Display } from 'next/font/google'
 import { Providers } from './providers'
 import { Toaster } from 'react-hot-toast'
 
@@ -17,6 +17,13 @@ const mono = JetBrains_Mono({
   weight: ['400', '500', '600'],
 })
 
+const serif = Playfair_Display({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-serif',
+  weight: ['500', '600', '700'],
+})
+
 export const metadata = {
   title: 'WorkOffice — Plateforme premium de gestion de coworking',
   description: 'Gérez vos centres, entreprises domiciliées, salles de réunion, courriers et facturation depuis une plateforme SaaS unique.',
@@ -28,7 +35,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="fr" suppressHydrationWarning className={`${inter.variable} ${mono.variable}`}>
+    <html lang="fr" suppressHydrationWarning className={`${inter.variable} ${mono.variable} ${serif.variable}`}>
       <body className="font-sans antialiased min-h-screen bg-bg text-text" suppressHydrationWarning>
         <Providers>
           {children}
