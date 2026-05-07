@@ -40,8 +40,10 @@ export async function GET() {
     const thisMonth = startOfMonth(now)
     const yearAgo = new Date(now.getFullYear() - 1, now.getMonth(), 1)
 
-    // ============ Aggregations principales en parallele ============
+    // ============ MEGA BATCH PARALLELE — toutes les queries independantes en 1 seul aller-retour ============
+    type Row = { ym: string; v: number }
     const [
+      // Aggregations principales
       totalRevenueAgg,
       lastMonthRevenueAgg,
       prevMonthRevenueAgg,
@@ -55,6 +57,29 @@ export async function GET() {
       overdueLastMonth,
       activeUsers,
       newUsersThisMonth,
+      // Trends 12 mois
+      revRows,
+      entRows,
+      resRows,
+      pkgRows,
+      // Centres + agregations par centre
+      centers,
+      reservationsByCenter,
+      subsByCenter,
+      occupiedByCenter,
+      // Activite recente
+      recentInvoices,
+      recentPackages,
+      recentMails,
+      recentEnterprises,
+      // Alertes
+      overdueInvoicesList,
+      // Cockpit additionnel
+      upcomingReservations,
+      topEnterprisesRaw,
+      totalRoomsCount,
+      occupiedTodayRaw,
+      subsByType,
     ] = await Promise.all([
       prisma.invoice.aggregate({ where: { status: 'PAID' }, _sum: { totalAmount: true } }),
       prisma.invoice.aggregate({
@@ -90,24 +115,7 @@ export async function GET() {
       }),
       prisma.user.count({ where: { isActive: true } }),
       prisma.user.count({ where: { createdAt: { gte: thisMonth } } }),
-    ])
-
-    const totalRevenue = totalRevenueAgg._sum.totalAmount ?? 0
-    const lastMonthRevenue = lastMonthRevenueAgg._sum.totalAmount ?? 0
-    const prevMonthRevenue = prevMonthRevenueAgg._sum.totalAmount ?? 0
-    const revenueDelta =
-      prevMonthRevenue === 0
-        ? lastMonthRevenue > 0 ? 100 : 0
-        : Math.round(((lastMonthRevenue - prevMonthRevenue) / prevMonthRevenue) * 100)
-
-    const enterpriseDelta =
-      prevMonthEnterprises === 0
-        ? lastMonthEnterprises > 0 ? 100 : 0
-        : Math.round(((lastMonthEnterprises - prevMonthEnterprises) / prevMonthEnterprises) * 100)
-
-    // ============ Trends 12 mois (1 query SQL chacun via $queryRaw) ============
-    type Row = { ym: string; v: number }
-    const [revRows, entRows, resRows, pkgRows] = await Promise.all([
+      // Trends
       prisma.$queryRaw<Row[]>`
         SELECT to_char(date_trunc('month', "paidAt"), 'YYYY-MM') AS ym,
                COALESCE(SUM("totalAmount"), 0)::float AS v
@@ -136,7 +144,102 @@ export async function GET() {
         WHERE "receivedAt" >= ${yearAgo}
         GROUP BY 1
       `,
+      // Centres
+      prisma.center.findMany({
+        include: {
+          _count: { select: { enterprises: true, meetingRooms: true, users: true } },
+        },
+      }),
+      prisma.$queryRaw<{ centerId: string; count: number }[]>`
+        SELECT mr."centerId", COUNT(r.id)::int AS count
+        FROM reservations r
+        JOIN meeting_rooms mr ON mr.id = r."meetingRoomId"
+        WHERE r."startTime" >= ${thisMonth}
+        GROUP BY mr."centerId"
+      `,
+      prisma.$queryRaw<{ centerId: string; count: number }[]>`
+        SELECT e."centerId", COUNT(s.id)::int AS count
+        FROM subscriptions s
+        JOIN enterprises e ON e.id = s."enterpriseId"
+        WHERE s."isActive" = true
+        GROUP BY e."centerId"
+      `,
+      prisma.$queryRaw<{ centerId: string; count: number }[]>`
+        SELECT mr."centerId", COUNT(r.id)::int AS count
+        FROM reservations r
+        JOIN meeting_rooms mr ON mr.id = r."meetingRoomId"
+        WHERE r."startTime" >= ${today} AND r."startTime" < ${tomorrow}
+          AND r."status" IN ('CONFIRMED', 'PENDING')
+        GROUP BY mr."centerId"
+      `,
+      // Activite recente
+      prisma.invoice.findMany({
+        take: 4,
+        orderBy: { createdAt: 'desc' },
+        include: { enterprise: { select: { name: true } } },
+      }),
+      prisma.package.findMany({ take: 3, orderBy: { receivedAt: 'desc' } }),
+      prisma.mail.findMany({ take: 3, orderBy: { receivedAt: 'desc' } }),
+      prisma.enterprise.findMany({
+        take: 3,
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, name: true, createdAt: true, status: true },
+      }),
+      // Alertes
+      prisma.invoice.findMany({
+        where: { status: { in: ['PENDING', 'OVERDUE'] }, dueDate: { lt: today } },
+        take: 3,
+        orderBy: { dueDate: 'asc' },
+        include: { enterprise: { select: { name: true } } },
+      }),
+      // Cockpit
+      prisma.reservation.findMany({
+        where: {
+          startTime: { gte: new Date() },
+          status: { in: ['CONFIRMED', 'PENDING'] },
+        },
+        take: 5,
+        orderBy: { startTime: 'asc' },
+        include: {
+          meetingRoom: { select: { id: true, name: true } },
+          user: { select: { id: true, name: true, email: true } },
+        },
+      }),
+      prisma.$queryRaw<{ enterpriseId: string; total: number; count: number }[]>`
+        SELECT "enterpriseId", COALESCE(SUM("totalAmount"),0)::float AS total, COUNT(*)::int AS count
+        FROM invoices
+        WHERE "status" = 'PAID'
+        GROUP BY "enterpriseId"
+        ORDER BY total DESC
+        LIMIT 5
+      `,
+      prisma.meetingRoom.count({ where: { isActive: true } }),
+      prisma.$queryRaw<{ count: number }[]>`
+        SELECT COUNT(DISTINCT "meetingRoomId")::int AS count
+        FROM reservations
+        WHERE "startTime" >= ${today} AND "startTime" < ${tomorrow}
+          AND "status" IN ('CONFIRMED', 'PENDING')
+      `,
+      prisma.subscription.groupBy({
+        by: ['type'],
+        where: { isActive: true },
+        _count: true,
+        _sum: { monthlyAmount: true },
+      }),
     ])
+
+    const totalRevenue = totalRevenueAgg._sum.totalAmount ?? 0
+    const lastMonthRevenue = lastMonthRevenueAgg._sum.totalAmount ?? 0
+    const prevMonthRevenue = prevMonthRevenueAgg._sum.totalAmount ?? 0
+    const revenueDelta =
+      prevMonthRevenue === 0
+        ? lastMonthRevenue > 0 ? 100 : 0
+        : Math.round(((lastMonthRevenue - prevMonthRevenue) / prevMonthRevenue) * 100)
+
+    const enterpriseDelta =
+      prevMonthEnterprises === 0
+        ? lastMonthEnterprises > 0 ? 100 : 0
+        : Math.round(((lastMonthEnterprises - prevMonthEnterprises) / prevMonthEnterprises) * 100)
 
     const revMap: Record<string, number> = {}
     revRows.forEach(r => { revMap[r.ym] = Number(r.v) })
@@ -161,39 +264,7 @@ export async function GET() {
       }
     })
 
-    // ============ Centres summary (1 fetch + maps) ============
-    const centers = await prisma.center.findMany({
-      include: {
-        _count: { select: { enterprises: true, meetingRooms: true, users: true } },
-      },
-    })
-    const centerIds = centers.map(c => c.id)
-
-    const [reservationsByCenter, subsByCenter, occupiedByCenter] = await Promise.all([
-      prisma.$queryRaw<{ centerId: string; count: number }[]>`
-        SELECT mr."centerId", COUNT(r.id)::int AS count
-        FROM reservations r
-        JOIN meeting_rooms mr ON mr.id = r."meetingRoomId"
-        WHERE r."startTime" >= ${thisMonth}
-        GROUP BY mr."centerId"
-      `,
-      prisma.$queryRaw<{ centerId: string; count: number }[]>`
-        SELECT e."centerId", COUNT(s.id)::int AS count
-        FROM subscriptions s
-        JOIN enterprises e ON e.id = s."enterpriseId"
-        WHERE s."isActive" = true
-        GROUP BY e."centerId"
-      `,
-      prisma.$queryRaw<{ centerId: string; count: number }[]>`
-        SELECT mr."centerId", COUNT(r.id)::int AS count
-        FROM reservations r
-        JOIN meeting_rooms mr ON mr.id = r."meetingRoomId"
-        WHERE r."startTime" >= ${today} AND r."startTime" < ${tomorrow}
-          AND r."status" IN ('CONFIRMED', 'PENDING')
-        GROUP BY mr."centerId"
-      `,
-    ])
-
+    // ============ Centres summary (consolidation des aggregations parallelisees) ============
     const resMapByCenter = Object.fromEntries(reservationsByCenter.map(r => [r.centerId, Number(r.count)]))
     const subsMapByCenter = Object.fromEntries(subsByCenter.map(r => [r.centerId, Number(r.count)]))
     const occMapByCenter = Object.fromEntries(occupiedByCenter.map(r => [r.centerId, Number(r.count)]))
@@ -215,22 +286,7 @@ export async function GET() {
       }
     })
 
-    // ============ Activité récente (4 queries parallèles) ============
-    const [recentInvoices, recentPackages, recentMails, recentEnterprises] = await Promise.all([
-      prisma.invoice.findMany({
-        take: 4,
-        orderBy: { createdAt: 'desc' },
-        include: { enterprise: { select: { name: true } } },
-      }),
-      prisma.package.findMany({ take: 3, orderBy: { receivedAt: 'desc' } }),
-      prisma.mail.findMany({ take: 3, orderBy: { receivedAt: 'desc' } }),
-      prisma.enterprise.findMany({
-        take: 3,
-        orderBy: { createdAt: 'desc' },
-        select: { id: true, name: true, createdAt: true, status: true },
-      }),
-    ])
-
+    // ============ Activité récente (consolidation) ============
     const activity = [
       ...recentInvoices.map(i => ({
         type: 'invoice' as const,
@@ -272,39 +328,7 @@ export async function GET() {
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       .slice(0, 8)
 
-    // ============ Alertes ============
-    const overdueInvoicesList = await prisma.invoice.findMany({
-      where: { status: { in: ['PENDING', 'OVERDUE'] }, dueDate: { lt: today } },
-      take: 3,
-      orderBy: { dueDate: 'asc' },
-      include: { enterprise: { select: { name: true } } },
-    })
-
-    // ============ Données cockpit additionnelles ============
-
-    // 1) Réservations à venir (5 prochaines)
-    const upcomingReservations = await prisma.reservation.findMany({
-      where: {
-        startTime: { gte: new Date() },
-        status: { in: ['CONFIRMED', 'PENDING'] },
-      },
-      take: 5,
-      orderBy: { startTime: 'asc' },
-      include: {
-        meetingRoom: { select: { id: true, name: true } },
-        user: { select: { id: true, name: true, email: true } },
-      },
-    })
-
-    // 2) Top entreprises (par CA cumulé sur les factures payées)
-    const topEnterprisesRaw = await prisma.$queryRaw<{ enterpriseId: string; total: number; count: number }[]>`
-      SELECT "enterpriseId", COALESCE(SUM("totalAmount"),0)::float AS total, COUNT(*)::int AS count
-      FROM invoices
-      WHERE "status" = 'PAID'
-      GROUP BY "enterpriseId"
-      ORDER BY total DESC
-      LIMIT 5
-    `
+    // ============ Top entreprises : 2e phase (depend de topEnterprisesRaw) ============
     const topEntIds = topEnterprisesRaw.map(t => t.enterpriseId)
     const topEntsData = topEntIds.length > 0
       ? await prisma.enterprise.findMany({
@@ -323,26 +347,11 @@ export async function GET() {
       }
     })
 
-    // 3) Taux d'occupation global (salles utilisées aujourd'hui / total salles)
-    const [totalRoomsCount, occupiedTodayRaw] = await Promise.all([
-      prisma.meetingRoom.count({ where: { isActive: true } }),
-      prisma.$queryRaw<{ count: number }[]>`
-        SELECT COUNT(DISTINCT "meetingRoomId")::int AS count
-        FROM reservations
-        WHERE "startTime" >= ${today} AND "startTime" < ${tomorrow}
-          AND "status" IN ('CONFIRMED', 'PENDING')
-      `,
-    ])
+    // 3) Taux d'occupation global (consolidation)
     const occupiedTodayCount = Number(occupiedTodayRaw[0]?.count ?? 0)
     const globalOccupancy = totalRoomsCount === 0 ? 0 : Math.round((occupiedTodayCount / totalRoomsCount) * 100)
 
-    // 4) Répartition abonnements par type (DAILY/MONTHLY/YEARLY)
-    const subsByType = await prisma.subscription.groupBy({
-      by: ['type'],
-      where: { isActive: true },
-      _count: true,
-      _sum: { monthlyAmount: true },
-    })
+    // 4) Répartition abonnements par type (consolidation)
     const subscriptionsBreakdown = subsByType.map(s => ({
       type: s.type,
       count: s._count,
