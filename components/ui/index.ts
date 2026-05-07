@@ -41,6 +41,10 @@ export { PageHeader } from './PageHeader'
 
 export { KpiCard, StatGrid } from './KpiCard'
 
+export { Gauge } from './Gauge'
+
+export { LiveIndicator } from './LiveIndicator'
+
 export { DataTable } from './DataTable'
 export type { Column } from './DataTable'
 

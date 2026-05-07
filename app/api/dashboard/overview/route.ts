@@ -280,6 +280,80 @@ export async function GET() {
       include: { enterprise: { select: { name: true } } },
     })
 
+    // ============ Données cockpit additionnelles ============
+
+    // 1) Réservations à venir (5 prochaines)
+    const upcomingReservations = await prisma.reservation.findMany({
+      where: {
+        startTime: { gte: new Date() },
+        status: { in: ['CONFIRMED', 'PENDING'] },
+      },
+      take: 5,
+      orderBy: { startTime: 'asc' },
+      include: {
+        meetingRoom: { select: { id: true, name: true } },
+        user: { select: { id: true, name: true, email: true } },
+      },
+    })
+
+    // 2) Top entreprises (par CA cumulé sur les factures payées)
+    const topEnterprisesRaw = await prisma.$queryRaw<{ enterpriseId: string; total: number; count: number }[]>`
+      SELECT "enterpriseId", COALESCE(SUM("totalAmount"),0)::float AS total, COUNT(*)::int AS count
+      FROM invoices
+      WHERE "status" = 'PAID'
+      GROUP BY "enterpriseId"
+      ORDER BY total DESC
+      LIMIT 5
+    `
+    const topEntIds = topEnterprisesRaw.map(t => t.enterpriseId)
+    const topEntsData = topEntIds.length > 0
+      ? await prisma.enterprise.findMany({
+          where: { id: { in: topEntIds } },
+          select: { id: true, name: true, status: true },
+        })
+      : []
+    const topEnterprises = topEnterprisesRaw.map(t => {
+      const e = topEntsData.find(x => x.id === t.enterpriseId)
+      return {
+        id: t.enterpriseId,
+        name: e?.name ?? '—',
+        status: e?.status ?? 'ACTIVE',
+        revenue: Number(t.total),
+        invoiceCount: Number(t.count),
+      }
+    })
+
+    // 3) Taux d'occupation global (salles utilisées aujourd'hui / total salles)
+    const [totalRoomsCount, occupiedTodayRaw] = await Promise.all([
+      prisma.meetingRoom.count({ where: { isActive: true } }),
+      prisma.$queryRaw<{ count: number }[]>`
+        SELECT COUNT(DISTINCT "meetingRoomId")::int AS count
+        FROM reservations
+        WHERE "startTime" >= ${today} AND "startTime" < ${tomorrow}
+          AND "status" IN ('CONFIRMED', 'PENDING')
+      `,
+    ])
+    const occupiedTodayCount = Number(occupiedTodayRaw[0]?.count ?? 0)
+    const globalOccupancy = totalRoomsCount === 0 ? 0 : Math.round((occupiedTodayCount / totalRoomsCount) * 100)
+
+    // 4) Répartition abonnements par type (DAILY/MONTHLY/YEARLY)
+    const subsByType = await prisma.subscription.groupBy({
+      by: ['type'],
+      where: { isActive: true },
+      _count: true,
+      _sum: { monthlyAmount: true },
+    })
+    const subscriptionsBreakdown = subsByType.map(s => ({
+      type: s.type,
+      count: s._count,
+      revenue: s._sum.monthlyAmount ?? 0,
+    }))
+
+    // 5) MRR (Monthly Recurring Revenue)
+    const mrr = subscriptionsBreakdown
+      .filter(s => s.type === 'MONTHLY')
+      .reduce((acc, s) => acc + Number(s.revenue), 0)
+
     return NextResponse.json({
       kpis: {
         revenue: { value: lastMonthRevenue, delta: revenueDelta, trend: trendRevenue },
@@ -316,6 +390,25 @@ export async function GET() {
         })),
         packagesPending,
         mailsPending,
+      },
+      cockpit: {
+        upcomingReservations: upcomingReservations.map(r => ({
+          id: r.id,
+          title: r.title,
+          startTime: r.startTime,
+          endTime: r.endTime,
+          status: r.status,
+          totalAmount: r.totalAmount,
+          room: r.meetingRoom,
+          user: r.user,
+        })),
+        topEnterprises,
+        globalOccupancy,
+        totalRoomsCount,
+        occupiedTodayCount,
+        subscriptionsBreakdown,
+        mrr,
+        timestamp: new Date().toISOString(),
       },
     })
   } catch (err) {
