@@ -132,7 +132,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
       {sections.map((section) => (
         <div key={section.label}>
           {!collapsed && (
-            <h3 className="px-3 mb-2 text-2xs font-semibold uppercase tracking-wider text-text-subtle">
+            <h3 className="px-3 mb-2 text-2xs font-semibold uppercase tracking-wider text-gold-600 dark:text-gold-400">
               {section.label}
             </h3>
           )}
@@ -148,21 +148,23 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
                       'group relative flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg',
                       'transition-all duration-200 ease-smooth',
                       active
-                        ? 'text-text bg-surface-2'
+                        ? 'text-text bg-gradient-to-r from-gold-50 to-transparent dark:from-gold-900/20 dark:to-transparent ring-1 ring-inset ring-gold-200/60 dark:ring-gold-700/30'
                         : 'text-text-muted hover:text-text hover:bg-surface-2/60'
                     )}
                   >
-                    {/* Indicateur actif gold à gauche */}
+                    {/* Indicateur actif gold à gauche, plus visible */}
                     {active && (
                       <span
-                        className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-r-full bg-gold-500 animate-fade-in"
+                        className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-gradient-to-b from-gold-400 to-gold-600 shadow-glow-gold animate-fade-in"
                         aria-hidden
                       />
                     )}
                     <item.icon
                       className={cn(
                         'h-[18px] w-[18px] shrink-0 transition-colors',
-                        active ? 'text-text' : 'text-text-muted group-hover:text-text'
+                        active
+                          ? 'text-gold-600 dark:text-gold-400'
+                          : 'text-text-muted group-hover:text-text'
                       )}
                       strokeWidth={active ? 2 : 1.75}
                     />
@@ -187,7 +189,10 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   )
 
   const UserCard = (
-    <div ref={userMenuRef} className="relative px-3 pb-3 pt-2 border-t border-border">
+    <div
+      ref={userMenuRef}
+      className="relative px-3 pb-3 pt-3 border-t border-border bg-gradient-to-b from-gold-50/30 to-transparent dark:from-gold-900/10 dark:to-transparent"
+    >
       <button
         onClick={() => setShowUserMenu(!showUserMenu)}
         className={cn(
@@ -195,7 +200,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
           'hover:bg-surface-2 transition-colors text-left'
         )}
       >
-        <div className="h-9 w-9 rounded-full bg-gradient-to-br from-ink-700 to-ink-900 ring-2 ring-bg flex items-center justify-center text-white text-xs font-semibold shrink-0">
+        <div className="h-9 w-9 rounded-full bg-gradient-to-br from-ink-700 to-ink-900 ring-2 ring-gold-400/40 ring-offset-2 ring-offset-bg flex items-center justify-center text-white text-xs font-semibold shrink-0">
           {getInitials(session?.user?.name || session?.user?.email || '?')}
         </div>
         {!collapsed && (

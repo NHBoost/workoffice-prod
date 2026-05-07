@@ -24,7 +24,7 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
       className={cn(
         'rounded-2xl transition-all duration-200',
         variants[variant],
-        interactive && 'hover:shadow-soft-md hover:-translate-y-0.5 cursor-pointer',
+        interactive && 'hover:shadow-soft-md hover:-translate-y-0.5 hover:border-gold-300/60 dark:hover:border-gold-700/40 cursor-pointer',
         className
       )}
       {...props}

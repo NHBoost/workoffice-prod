@@ -59,11 +59,16 @@ export function PageHeader({
 
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tighter text-text">
+          <h1 className="relative inline-block text-2xl sm:text-3xl font-semibold tracking-tighter text-text">
             {title}
+            {/* Underline gold subtile pour le titre (touche premium) */}
+            <span
+              className="absolute -bottom-1 left-0 h-0.5 w-12 rounded-full bg-gradient-to-r from-gold-400 to-gold-600/0"
+              aria-hidden
+            />
           </h1>
           {description && (
-            <p className="mt-1.5 text-sm text-text-muted max-w-2xl">
+            <p className="mt-3 text-sm text-text-muted max-w-2xl">
               {description}
             </p>
           )}

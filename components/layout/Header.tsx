@@ -49,18 +49,18 @@ export function Header({ onMobileMenuOpen }: HeaderProps) {
             </div>
           </div>
 
-          {/* Center : search trigger (desktop) */}
+          {/* Center : search trigger (desktop) — accent gold subtle */}
           <button
             onClick={() => setPaletteOpen(true)}
             className={cn(
-              'hidden md:inline-flex items-center gap-2 h-9 w-[280px] px-3',
+              'group hidden md:inline-flex items-center gap-2 h-9 w-[280px] px-3',
               'rounded-lg border border-border bg-surface text-xs text-text-subtle',
-              'hover:bg-surface-2 hover:border-border-strong transition-colors'
+              'hover:bg-surface-2 hover:border-gold-300 hover:text-text transition-colors'
             )}
           >
-            <Search className="h-3.5 w-3.5 shrink-0" />
+            <Search className="h-3.5 w-3.5 shrink-0 group-hover:text-gold-600 transition-colors" />
             <span className="flex-1 text-left">Rechercher ou créer...</span>
-            <kbd className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-2xs font-mono bg-surface-2 border border-border text-text-subtle">
+            <kbd className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-2xs font-mono bg-gold-50 border border-gold-200 text-gold-700 dark:bg-gold-900/30 dark:border-gold-700/40 dark:text-gold-400 group-hover:border-gold-300 transition-colors">
               <CommandIcon className="h-2.5 w-2.5" />K
             </kbd>
           </button>
@@ -80,7 +80,7 @@ export function Header({ onMobileMenuOpen }: HeaderProps) {
 
             <button
               onClick={toggleDark}
-              className="inline-flex items-center justify-center h-9 w-9 rounded-lg text-text-muted hover:text-text hover:bg-surface-2 transition-colors"
+              className="inline-flex items-center justify-center h-9 w-9 rounded-lg text-text-muted hover:text-gold-600 dark:hover:text-gold-400 hover:bg-gold-50 dark:hover:bg-gold-900/20 transition-colors"
               aria-label="Basculer le thème"
             >
               {isDark ? (

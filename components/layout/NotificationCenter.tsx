@@ -107,7 +107,7 @@ export function NotificationCenter() {
       >
         <Bell className="h-[18px] w-[18px]" strokeWidth={1.75} />
         {unreadCount > 0 && (
-          <span className="absolute top-1.5 right-1.5 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-primary-600 text-white text-[10px] font-semibold ring-2 ring-bg">
+          <span className="absolute top-1.5 right-1.5 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-gradient-to-br from-gold-400 to-gold-600 text-ink-900 text-[10px] font-bold ring-2 ring-bg shadow-glow-gold">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
@@ -177,7 +177,7 @@ export function NotificationCenter() {
                             <p className={cn('text-sm leading-snug', !n.read ? 'font-semibold text-text' : 'text-text-muted')}>
                               {n.title}
                             </p>
-                            {!n.read && <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-primary-600 shrink-0" />}
+                            {!n.read && <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-gold-500 shadow-glow-gold shrink-0" />}
                           </div>
                           <p className="text-xs text-text-muted mt-0.5 line-clamp-1">
                             {n.description}
