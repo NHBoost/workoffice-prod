@@ -115,7 +115,7 @@ export default function CockpitDashboard() {
   if (loading && !data) {
     return (
       <div className="p-6">
-        <PageHeader title="Cockpit" description="Chargement de votre tableau de pilotage..." />
+        <PageHeader title="Vue d'ensemble" description="Chargement de votre tableau de pilotage..." />
         <StatGrid cols={4} gap="md">
           {[...Array(8)].map((_, i) => <KpiCard key={i} label="" value="" loading />)}
         </StatGrid>
@@ -153,7 +153,7 @@ export default function CockpitDashboard() {
         <div className="min-w-0">
           <div className="flex items-center gap-3 mb-2">
             <h1 className="text-3xl font-semibold tracking-tighter text-text relative">
-              Cockpit
+              Vue d&apos;ensemble
               <span className="absolute -bottom-1 left-0 h-0.5 w-16 rounded-full bg-gradient-to-r from-gold-400 to-gold-600/0" aria-hidden />
             </h1>
             <LiveIndicator label="Temps réel" tone="success" />
