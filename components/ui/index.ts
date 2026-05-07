@@ -45,6 +45,8 @@ export { Gauge } from './Gauge'
 
 export { LiveIndicator } from './LiveIndicator'
 
+export { LiveClock } from './LiveClock'
+
 export { DataTable } from './DataTable'
 export type { Column } from './DataTable'
 

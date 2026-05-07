@@ -1,6 +1,6 @@
 'use client'
 
-import { ReactNode } from 'react'
+import { ReactNode, memo } from 'react'
 import { TrendingUp, TrendingDown, Minus, type LucideIcon } from 'lucide-react'
 import { ResponsiveContainer, AreaChart, Area, Tooltip } from 'recharts'
 import { cn } from '@/lib/utils'
@@ -55,7 +55,7 @@ interface KpiCardProps {
   className?: string
 }
 
-export function KpiCard({
+function KpiCardImpl({
   label,
   value,
   sublabel,
@@ -191,6 +191,8 @@ export function KpiCard({
     </div>
   )
 }
+
+export const KpiCard = memo(KpiCardImpl)
 
 /* ============================================================
    StatGrid — wrapper grid responsive pour aligner des KpiCards

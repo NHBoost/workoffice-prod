@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import {
@@ -17,7 +17,7 @@ const RevenueChart = dynamic(() => import('@/components/charts/RevenueChart'), {
 })
 import {
   PageHeader, KpiCard, StatGrid, Card, Badge, StatusBadge, Avatar,
-  Spinner, EmptyState, Gauge, LiveIndicator, RoleBadge,
+  Spinner, EmptyState, Gauge, LiveIndicator, RoleBadge, LiveClock,
 } from '@/components/ui'
 import { cn, formatCurrency } from '@/lib/utils'
 import type { LucideIcon } from 'lucide-react'
@@ -92,29 +92,22 @@ export default function CockpitDashboard() {
   const [data, setData] = useState<OverviewData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [now, setNow] = useState<Date>(new Date())
 
-  // Live clock
-  useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 30_000)
-    return () => clearInterval(t)
-  }, [])
-
-  const fetchOverview = () => {
+  const fetchOverview = useCallback(() => {
     setLoading(true)
     fetch('/api/dashboard/overview')
       .then(r => (r.ok ? r.json() : Promise.reject(r)))
       .then(setData)
       .catch(() => setError('Erreur lors du chargement'))
       .finally(() => setLoading(false))
-  }
+  }, [])
 
   useEffect(() => {
     fetchOverview()
     // Refresh auto toutes les 2 min
     const t = setInterval(fetchOverview, 120_000)
     return () => clearInterval(t)
-  }, [])
+  }, [fetchOverview])
 
   if (loading && !data) {
     return (
@@ -143,12 +136,19 @@ export default function CockpitDashboard() {
 
   const { kpis, revenueChart, centersSummary, activity, alerts, cockpit } = data
 
-  // ============ HEADER COCKPIT ============
-  const fullDate = now.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-  const liveTime = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+  // Totaux dérivés mémoïsés
+  const alertsCount = useMemo(
+    () =>
+      alerts.overdueInvoices.length +
+      (alerts.packagesPending > 0 ? 1 : 0) +
+      (alerts.mailsPending > 0 ? 1 : 0),
+    [alerts.overdueInvoices.length, alerts.packagesPending, alerts.mailsPending]
+  )
 
-  // Petits totaux dérivés pour widgets
-  const alertsCount = alerts.overdueInvoices.length + (alerts.packagesPending > 0 ? 1 : 0) + (alerts.mailsPending > 0 ? 1 : 0)
+  const totalActiveSubs = useMemo(
+    () => cockpit.subscriptionsBreakdown.reduce((s, b) => s + b.count, 0),
+    [cockpit.subscriptionsBreakdown]
+  )
 
   return (
     <div className="p-6 space-y-6 animate-fade-in">
@@ -162,13 +162,8 @@ export default function CockpitDashboard() {
             </h1>
             <LiveIndicator label="Temps réel" tone="success" />
           </div>
-          <p className="text-sm text-text-muted">
-            <span className="capitalize">{fullDate}</span>
-            {' · '}
-            <span className="text-text font-medium nums-tabular">{liveTime}</span>
-            {' · '}
-            <span className="text-text-subtle">Synchro auto toutes les 2 min</span>
-          </p>
+          <LiveClock />
+
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <button
@@ -242,7 +237,7 @@ export default function CockpitDashboard() {
               {formatCurrency(cockpit.mrr)}
             </p>
             <p className="mt-2 text-xs text-text-muted">
-              <span className="font-medium text-text">{cockpit.subscriptionsBreakdown.reduce((s, b) => s + b.count, 0)}</span>
+              <span className="font-medium text-text">{totalActiveSubs}</span>
               {' '}abonnements actifs
             </p>
           </div>
