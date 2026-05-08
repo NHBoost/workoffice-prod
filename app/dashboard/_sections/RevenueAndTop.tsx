@@ -1,14 +1,9 @@
 import Link from 'next/link'
-import dynamic from 'next/dynamic'
 import { TrendingUp, Crown, Building } from 'lucide-react'
-import { Card, Badge, EmptyState, Skeleton } from '@/components/ui'
+import { Card, Badge, EmptyState } from '@/components/ui'
 import { cn, formatCurrency } from '@/lib/utils'
 import { getAnalyticsData } from '@/lib/dashboard/queries'
-
-const RevenueChart = dynamic(() => import('@/components/charts/RevenueChart'), {
-  ssr: false,
-  loading: () => <Skeleton className="h-[260px] w-full" />,
-})
+import RevenueChart from '@/components/charts/RevenueChart'
 
 export async function RevenueAndTop() {
   const { revenueChart, topEnterprises } = await getAnalyticsData()
