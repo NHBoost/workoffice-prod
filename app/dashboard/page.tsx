@@ -134,7 +134,35 @@ export default function CockpitDashboard() {
     )
   }
 
-  const { kpis, revenueChart, centersSummary, activity, alerts, cockpit } = data
+  // Defaults defensifs : evite les crashs si l'API renvoie un payload partiel
+  const kpis = {
+    revenue: { value: 0, delta: 0, ...(data.kpis?.revenue ?? {}) },
+    revenueTotal: { value: 0, ...(data.kpis?.revenueTotal ?? {}) },
+    activeEnterprises: { value: 0, delta: 0, ...(data.kpis?.activeEnterprises ?? {}) },
+    reservationsToday: { value: 0, ...(data.kpis?.reservationsToday ?? {}) },
+    packagesPending: { value: 0, ...(data.kpis?.packagesPending ?? {}) },
+    mailsPending: { value: 0, ...(data.kpis?.mailsPending ?? {}) },
+    overdueInvoices: { value: 0, amount: 0, delta: 0, ...(data.kpis?.overdueInvoices ?? {}) },
+    activeUsers: { value: 0, newThisMonth: 0, ...(data.kpis?.activeUsers ?? {}) },
+  }
+  const revenueChart = data.revenueChart ?? []
+  const centersSummary = data.centersSummary ?? []
+  const activity = data.activity ?? []
+  const alerts = {
+    overdueInvoices: data.alerts?.overdueInvoices ?? [],
+    packagesPending: data.alerts?.packagesPending ?? 0,
+    mailsPending: data.alerts?.mailsPending ?? 0,
+  }
+  const cockpit = {
+    upcomingReservations: data.cockpit?.upcomingReservations ?? [],
+    topEnterprises: data.cockpit?.topEnterprises ?? [],
+    globalOccupancy: data.cockpit?.globalOccupancy ?? 0,
+    totalRoomsCount: data.cockpit?.totalRoomsCount ?? 0,
+    occupiedTodayCount: data.cockpit?.occupiedTodayCount ?? 0,
+    subscriptionsBreakdown: data.cockpit?.subscriptionsBreakdown ?? [],
+    mrr: data.cockpit?.mrr ?? 0,
+    timestamp: data.cockpit?.timestamp ?? new Date().toISOString(),
+  }
 
   // Totaux dérivés mémoïsés
   const alertsCount = useMemo(
