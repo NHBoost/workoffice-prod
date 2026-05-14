@@ -4,6 +4,7 @@ import { PrismaAdapter } from '@next-auth/prisma-adapter'
 import { prisma } from './prisma'
 import { compare } from 'bcryptjs'
 import { rateLimit } from './rate-limit'
+import { audit } from './audit'
 
 /**
  * Anti brute-force config :
@@ -54,18 +55,37 @@ export const authOptions: NextAuthOptions = {
           include: { center: true },
         })
 
+        // Pseudo-Request avec headers pour audit (next-auth donne req brut)
+        const auditReq = {
+          headers: new Headers(req?.headers as Record<string, string> | undefined),
+        }
+
         if (!user || !user.password) {
           // Pas d'enumeration : meme delai bcrypt qu'un mot de passe rate
           await compare(credentials.password, '$2a$12$abcdefghijklmnopqrstuv1234567890abcdefghijklmnop')
+          await audit('login.failure', {
+            metadata: { email, reason: 'unknown_email' },
+            request: auditReq,
+          })
           return null
         }
 
         // === Defense 2 : compte verrouille en BDD ? ===
         if (user.lockedUntil && user.lockedUntil > new Date()) {
+          await audit('login.failure', {
+            actor: { id: user.id, email: user.email, role: user.role },
+            metadata: { reason: 'account_locked', lockedUntil: user.lockedUntil },
+            request: auditReq,
+          })
           throw new Error('Account locked, please retry later or reset password.')
         }
 
         if (!user.isActive) {
+          await audit('login.failure', {
+            actor: { id: user.id, email: user.email, role: user.role },
+            metadata: { reason: 'inactive' },
+            request: auditReq,
+          })
           return null
         }
 
@@ -82,6 +102,11 @@ export const authOptions: NextAuthOptions = {
               lockedUntil: shouldLock ? new Date(Date.now() + LOCK_DURATION_MS) : null,
             },
           })
+          await audit(shouldLock ? 'login.lockout' : 'login.failure', {
+            actor: { id: user.id, email: user.email, role: user.role },
+            metadata: { reason: 'wrong_password', attempts: nextAttempts },
+            request: auditReq,
+          })
           return null
         }
 
@@ -93,6 +118,11 @@ export const authOptions: NextAuthOptions = {
             lockedUntil: null,
             lastLoginAt: new Date(),
           },
+        })
+
+        await audit('login.success', {
+          actor: { id: user.id, email: user.email, role: user.role },
+          request: auditReq,
         })
 
         return {

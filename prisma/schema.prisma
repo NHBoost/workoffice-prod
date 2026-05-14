@@ -382,6 +382,36 @@ model Settings {
   @@map("settings")
 }
 
+// Journal d'audit des actions sensibles (creation/maj/suppression d'entites,
+// changements de role, logins admin, etc.).
+// Conserve qui a fait quoi sur quoi, quand, depuis quelle IP.
+// Garder au moins 90j pour conformite (RGPD article 32).
+model AuditLog {
+  id           String   @id @default(cuid())
+  // Qui : userId si authentifie, null sinon (login fail, etc.)
+  userId       String?
+  userEmail    String?  // snapshot car l'user peut etre supprime apres
+  userRole     String?
+  // Quoi : 'user.create', 'user.delete', 'user.role_change', 'center.create',
+  //        'login.success', 'login.failure', 'login.lockout', etc.
+  action       String
+  // Sur quoi : 'User' / 'Center' / 'Enterprise' / 'Invoice' / 'Session', etc.
+  resourceType String?
+  resourceId   String?
+  // Metadata JSON serialise : valeurs avant/apres, raison, etc.
+  metadata     String?  @db.Text
+  // Contexte requete
+  ip           String?
+  userAgent    String?  @db.Text
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([resourceType, resourceId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
 // Rate limiting persistant cross-instance.
 // Cle de la forme "scope:identifier" :
 //   - "login:ip:1.2.3.4"

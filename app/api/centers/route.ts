@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuth, requireRole } from '@/lib/api-auth'
 import { checkRateLimit } from '@/lib/api-rate-limit'
+import { parseSearchParams, paginationSchema } from '@/lib/query-params'
+import { audit } from '@/lib/audit'
 import { z } from 'zod'
 
 const centerSchema = z.object({
@@ -19,9 +21,14 @@ export async function GET(request: NextRequest) {
   const { error } = await requireAuth()
   if (error) return error
 
+  const querySchema = z.object({
+    search: z.string().trim().max(200).optional().default(''),
+  })
+  const parsed = parseSearchParams(request, querySchema)
+  if (parsed instanceof NextResponse) return parsed
+  const { search } = parsed
+
   try {
-    const { searchParams } = new URL(request.url)
-    const search = searchParams.get('search') || ''
 
     const where: any = {}
     if (search) {
@@ -57,7 +64,7 @@ export async function POST(request: NextRequest) {
   const rl = await checkRateLimit(request, 'create_center', { max: 5, window: 60_000 })
   if (rl) return rl
   // Seuls les admins peuvent créer un centre
-  const { error } = await requireRole('ADMIN')
+  const { error, session } = await requireRole('ADMIN')
   if (error) return error
 
   try {
@@ -70,6 +77,14 @@ export async function POST(request: NextRequest) {
         phone: data.phone || null,
         email: data.email || null,
       },
+    })
+
+    await audit('center.create', {
+      actor: { id: session!.user.id, email: session!.user.email, role: session!.user.role },
+      resourceType: 'Center',
+      resourceId: center.id,
+      metadata: { name: center.name, city: center.city },
+      request,
     })
 
     return NextResponse.json(center, { status: 201 })

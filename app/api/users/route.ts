@@ -3,8 +3,18 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { checkRateLimit } from '@/lib/api-rate-limit'
+import { parseSearchParams } from '@/lib/query-params'
+import { audit } from '@/lib/audit'
 import { hash } from 'bcryptjs'
 import { z } from 'zod'
+
+const userListQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(10),
+  search: z.string().trim().max(200).optional().default(''),
+  status: z.enum(['all', 'active', 'inactive']).default('all'),
+  role: z.enum(['all', 'ADMIN', 'MANAGER', 'USER']).default('all'),
+})
 
 const createUserSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -24,12 +34,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { searchParams } = new URL(request.url)
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '10')
-    const search = searchParams.get('search') || ''
-    const status = searchParams.get('status') || 'all'
-    const role = searchParams.get('role') || 'all'
+    const parsed = parseSearchParams(request, userListQuerySchema)
+    if (parsed instanceof NextResponse) return parsed
+    const { page, limit, search, status, role } = parsed
 
     const skip = (page - 1) * limit
 
@@ -147,6 +154,23 @@ export async function POST(request: NextRequest) {
           }
         }
       }
+    })
+
+    // Audit : journal de la creation
+    await audit('user.create', {
+      actor: {
+        id: session.user.id,
+        email: session.user.email,
+        role: session.user.role,
+      },
+      resourceType: 'User',
+      resourceId: user.id,
+      metadata: {
+        createdEmail: user.email,
+        createdRole: user.role,
+        createdName: user.name,
+      },
+      request,
     })
 
     return NextResponse.json(user, { status: 201 })
