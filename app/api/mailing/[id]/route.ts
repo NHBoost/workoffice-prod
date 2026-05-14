@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuth, requireRole } from '@/lib/api-auth'
+import { sanitizeEmailHTML } from '@/lib/sanitize'
 import { z } from 'zod'
 
 const updateSchema = z.object({
@@ -56,6 +57,10 @@ export async function PUT(
     const data = updateSchema.parse(body)
 
     const updateData: any = { ...data }
+    // Sanitize HTML cote serveur (defense-in-depth contre XSS stocke)
+    if (data.content !== undefined) {
+      updateData.content = sanitizeEmailHTML(data.content)
+    }
     if (data.scheduledAt !== undefined) {
       updateData.scheduledAt = data.scheduledAt ? new Date(data.scheduledAt) : null
     }

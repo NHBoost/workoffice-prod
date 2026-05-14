@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuth, requireRole } from '@/lib/api-auth'
+import { sanitizeEmailHTML } from '@/lib/sanitize'
 import { z } from 'zod'
 
 const recipientSchema = z.object({
@@ -61,7 +62,7 @@ export async function POST(request: NextRequest) {
       data: {
         name: data.name,
         subject: data.subject,
-        content: data.content,
+        content: sanitizeEmailHTML(data.content),
         targetType: data.targetType,
         status: data.status,
         scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : null,

@@ -15,6 +15,7 @@ import {
   Calendar,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { sanitizeEmailHTML } from '@/lib/sanitize'
 
 interface Recipient {
   id: string
@@ -205,7 +206,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
           <p className="text-sm font-semibold text-gray-700 mb-2">Sujet : {campaign.subject}</p>
           <div
             className="prose prose-sm max-w-none whitespace-pre-wrap text-gray-700"
-            dangerouslySetInnerHTML={{ __html: campaign.content }}
+            dangerouslySetInnerHTML={{ __html: sanitizeEmailHTML(campaign.content) }}
           />
         </div>
         {campaign.sentAt && (
