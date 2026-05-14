@@ -109,6 +109,55 @@ export default function CockpitDashboard() {
     return () => clearInterval(t)
   }, [fetchOverview])
 
+  // ⚠️ TOUS les hooks doivent etre appeles AVANT toute early-return,
+  // sinon React error #310 (hook count incoherent entre renders).
+
+  // Defaults defensifs : evite les crashs si l'API renvoie un payload partiel
+  const kpis = useMemo(() => ({
+    revenue: { value: 0, delta: 0, ...(data?.kpis?.revenue ?? {}) },
+    revenueTotal: { value: 0, ...(data?.kpis?.revenueTotal ?? {}) },
+    activeEnterprises: { value: 0, delta: 0, ...(data?.kpis?.activeEnterprises ?? {}) },
+    reservationsToday: { value: 0, ...(data?.kpis?.reservationsToday ?? {}) },
+    packagesPending: { value: 0, ...(data?.kpis?.packagesPending ?? {}) },
+    mailsPending: { value: 0, ...(data?.kpis?.mailsPending ?? {}) },
+    overdueInvoices: { value: 0, amount: 0, delta: 0, ...(data?.kpis?.overdueInvoices ?? {}) },
+    activeUsers: { value: 0, newThisMonth: 0, ...(data?.kpis?.activeUsers ?? {}) },
+  }), [data])
+
+  const revenueChart = data?.revenueChart ?? []
+  const centersSummary = data?.centersSummary ?? []
+  const activity = data?.activity ?? []
+  const alerts = useMemo(() => ({
+    overdueInvoices: data?.alerts?.overdueInvoices ?? [],
+    packagesPending: data?.alerts?.packagesPending ?? 0,
+    mailsPending: data?.alerts?.mailsPending ?? 0,
+  }), [data])
+  const cockpit = useMemo(() => ({
+    upcomingReservations: data?.cockpit?.upcomingReservations ?? [],
+    topEnterprises: data?.cockpit?.topEnterprises ?? [],
+    globalOccupancy: data?.cockpit?.globalOccupancy ?? 0,
+    totalRoomsCount: data?.cockpit?.totalRoomsCount ?? 0,
+    occupiedTodayCount: data?.cockpit?.occupiedTodayCount ?? 0,
+    subscriptionsBreakdown: data?.cockpit?.subscriptionsBreakdown ?? [],
+    mrr: data?.cockpit?.mrr ?? 0,
+    timestamp: data?.cockpit?.timestamp ?? '',
+  }), [data])
+
+  // Totaux dérivés mémoïsés
+  const alertsCount = useMemo(
+    () =>
+      alerts.overdueInvoices.length +
+      (alerts.packagesPending > 0 ? 1 : 0) +
+      (alerts.mailsPending > 0 ? 1 : 0),
+    [alerts]
+  )
+
+  const totalActiveSubs = useMemo(
+    () => cockpit.subscriptionsBreakdown.reduce((s, b) => s + b.count, 0),
+    [cockpit.subscriptionsBreakdown]
+  )
+
+  // Early-returns APRES tous les hooks (rule of hooks)
   if (loading && !data) {
     return (
       <div className="p-6">
@@ -133,50 +182,6 @@ export default function CockpitDashboard() {
       </div>
     )
   }
-
-  // Defaults defensifs : evite les crashs si l'API renvoie un payload partiel
-  const kpis = {
-    revenue: { value: 0, delta: 0, ...(data.kpis?.revenue ?? {}) },
-    revenueTotal: { value: 0, ...(data.kpis?.revenueTotal ?? {}) },
-    activeEnterprises: { value: 0, delta: 0, ...(data.kpis?.activeEnterprises ?? {}) },
-    reservationsToday: { value: 0, ...(data.kpis?.reservationsToday ?? {}) },
-    packagesPending: { value: 0, ...(data.kpis?.packagesPending ?? {}) },
-    mailsPending: { value: 0, ...(data.kpis?.mailsPending ?? {}) },
-    overdueInvoices: { value: 0, amount: 0, delta: 0, ...(data.kpis?.overdueInvoices ?? {}) },
-    activeUsers: { value: 0, newThisMonth: 0, ...(data.kpis?.activeUsers ?? {}) },
-  }
-  const revenueChart = data.revenueChart ?? []
-  const centersSummary = data.centersSummary ?? []
-  const activity = data.activity ?? []
-  const alerts = {
-    overdueInvoices: data.alerts?.overdueInvoices ?? [],
-    packagesPending: data.alerts?.packagesPending ?? 0,
-    mailsPending: data.alerts?.mailsPending ?? 0,
-  }
-  const cockpit = {
-    upcomingReservations: data.cockpit?.upcomingReservations ?? [],
-    topEnterprises: data.cockpit?.topEnterprises ?? [],
-    globalOccupancy: data.cockpit?.globalOccupancy ?? 0,
-    totalRoomsCount: data.cockpit?.totalRoomsCount ?? 0,
-    occupiedTodayCount: data.cockpit?.occupiedTodayCount ?? 0,
-    subscriptionsBreakdown: data.cockpit?.subscriptionsBreakdown ?? [],
-    mrr: data.cockpit?.mrr ?? 0,
-    timestamp: data.cockpit?.timestamp ?? new Date().toISOString(),
-  }
-
-  // Totaux dérivés mémoïsés
-  const alertsCount = useMemo(
-    () =>
-      alerts.overdueInvoices.length +
-      (alerts.packagesPending > 0 ? 1 : 0) +
-      (alerts.mailsPending > 0 ? 1 : 0),
-    [alerts.overdueInvoices.length, alerts.packagesPending, alerts.mailsPending]
-  )
-
-  const totalActiveSubs = useMemo(
-    () => cockpit.subscriptionsBreakdown.reduce((s, b) => s + b.count, 0),
-    [cockpit.subscriptionsBreakdown]
-  )
 
   return (
     <div className="p-6 space-y-6 animate-fade-in">
