@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuth, requireRole } from '@/lib/api-auth'
+import { checkRateLimit } from '@/lib/api-rate-limit'
 import { z } from 'zod'
 
 const centerSchema = z.object({
@@ -53,6 +54,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const rl = await checkRateLimit(request, 'create_center', { max: 5, window: 60_000 })
+  if (rl) return rl
   // Seuls les admins peuvent créer un centre
   const { error } = await requireRole('ADMIN')
   if (error) return error

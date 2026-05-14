@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuth, requireRole } from '@/lib/api-auth'
+import { checkRateLimit } from '@/lib/api-rate-limit'
 import { z } from 'zod'
 
 const invoiceSchema = z.object({
@@ -68,6 +69,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const rl = await checkRateLimit(request, 'create_invoice', { max: 20, window: 60_000 })
+  if (rl) return rl
   const { error } = await requireRole('ADMIN', 'MANAGER')
   if (error) return error
 

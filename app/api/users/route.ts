@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { checkRateLimit } from '@/lib/api-rate-limit'
 import { hash } from 'bcryptjs'
 import { z } from 'zod'
 
@@ -92,6 +93,10 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit anti-spam : 10 creations / minute / IP
+    const rl = await checkRateLimit(request, 'create_user', { max: 10, window: 60_000 })
+    if (rl) return rl
+
     const session = await getServerSession(authOptions)
 
     if (!session) {

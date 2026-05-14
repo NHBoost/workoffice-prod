@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuth } from '@/lib/api-auth'
+import { checkRateLimit } from '@/lib/api-rate-limit'
 import { z } from 'zod'
 
 const reservationSchema = z.object({
@@ -49,6 +50,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const rl = await checkRateLimit(request, 'create_reservation', { max: 20, window: 60_000 })
+  if (rl) return rl
   const { error, session } = await requireAuth()
   if (error) return error
 

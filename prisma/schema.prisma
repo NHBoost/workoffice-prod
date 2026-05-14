@@ -382,3 +382,20 @@ model Settings {
   @@map("settings")
 }
 
+// Rate limiting persistant cross-instance.
+// Cle de la forme "scope:identifier" :
+//   - "login:ip:1.2.3.4"
+//   - "api:create_user:ip:1.2.3.4"
+//   - "forgot:email:user@x.com"
+// Garbage collection : les entrees dont resetAt < now sont nettoyees
+// periodiquement (ou ecrasees au prochain rateLimit() sur la meme key).
+model RateLimitEntry {
+  key       String   @id
+  count     Int      @default(1)
+  resetAt   DateTime
+  updatedAt DateTime @updatedAt
+
+  @@index([resetAt])
+  @@map("rate_limit_entries")
+}
+

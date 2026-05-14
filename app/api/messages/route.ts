@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuth } from '@/lib/api-auth'
+import { checkRateLimit } from '@/lib/api-rate-limit'
 import { z } from 'zod'
 
 const messageSchema = z.object({
@@ -51,6 +52,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  // Anti-spam : 30 messages / min / IP
+  const rl = await checkRateLimit(request, 'send_message', { max: 30, window: 60_000 })
+  if (rl) return rl
   const { error, session } = await requireAuth()
   if (error) return error
 
