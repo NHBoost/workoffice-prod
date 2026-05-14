@@ -49,6 +49,12 @@ model User {
   isActive      Boolean   @default(true)
   phone         String?
   centerId      String?
+  // Anti brute-force : incremente a chaque login fail, reset au succes
+  failedLoginAttempts Int       @default(0)
+  // Si non-null et > now(), tous les logins sont rejetes (compte verrouille)
+  lockedUntil         DateTime?
+  // Derniere connexion reussie (audit + UX)
+  lastLoginAt         DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
