@@ -422,10 +422,11 @@ model Client {
 
   // Section C — Domiciliation & formule
   centerId             String
-  formule              String   // DOMICILIATION / COWORKING_JOUR / COWORKING_MOIS / BUREAU_PRIVE
+  formule              String   // SS_PERSONNE_MORALE / SS_ASBL / UE / PACK_SS_UE
+  periodicite          String   @default("MENSUEL") // MENSUEL / TRIMESTRIEL / ANNUEL
   dateDebut            DateTime
   dureeMois            Int      @default(12)
-  montantHt            Float
+  montantHt            Float    // Montant HT TOTAL pour la periode choisie
   tvaTaux              Float    @default(21)
 
   // Statuts visibles dans la liste admin

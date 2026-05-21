@@ -11,7 +11,7 @@ import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import { Card, Badge, EmptyState, Spinner, ActionMenu, ConfirmDialog } from '@/components/ui'
 import { cn, formatCurrency } from '@/lib/utils'
-import { FORMULE_LABELS, type Formule } from '@/lib/client-schemas'
+import { FORMULE_LABELS, PERIODICITE_LABELS, type Formule, type Periodicite } from '@/lib/client-schemas'
 import { getCachedData, setCachedData } from '@/lib/client-cache'
 
 interface ClientRow {
@@ -24,6 +24,7 @@ interface ClientRow {
   prenom: string
   fonction: string
   formule: Formule
+  periodicite: Periodicite
   dateDebut: string
   montantHt: number
   compteStatut: 'NON_CREE' | 'CREE' | 'CONNECTE'
@@ -300,7 +301,10 @@ export default function ClientsListPage() {
                       <p className="text-2xs text-text-subtle truncate max-w-[200px]">{c.emailPerso}</p>
                     </td>
                     <td className="px-4 py-3 text-text-muted">{c.center.name}</td>
-                    <td className="px-4 py-3 text-text-muted">{FORMULE_LABELS[c.formule]}</td>
+                    <td className="px-4 py-3">
+                      <p className="text-text">{FORMULE_LABELS[c.formule]}</p>
+                      <p className="text-2xs text-text-subtle">{PERIODICITE_LABELS[c.periodicite]}</p>
+                    </td>
                     <td className="px-4 py-3 text-right font-medium nums-tabular">
                       {formatCurrency(c.montantHt)}
                     </td>

@@ -183,7 +183,17 @@ export function clientToVariables(input: {
   const eur = (n: number) =>
     new Intl.NumberFormat('fr-BE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)
 
-  const garantie = Number(client.montantHt) * 2 // 2 mensualites HT (cf. CGV art. 4.1)
+  // Calcul de l'equivalent mensuel HT pour le contrat
+  // (les CGV parlent de "deux mensualites" de garantie)
+  const periodicite = client.periodicite || 'MENSUEL'
+  const montantHt = Number(client.montantHt)
+  let montantMensuelHt: number
+  switch (periodicite) {
+    case 'TRIMESTRIEL': montantMensuelHt = montantHt / 3; break
+    case 'ANNUEL':      montantMensuelHt = montantHt / 10; break // 2 mois offerts
+    default:            montantMensuelHt = montantHt
+  }
+  const garantie = montantMensuelHt * 2 // 2 mensualites HT
 
   return {
     centre: {
@@ -218,7 +228,7 @@ export function clientToVariables(input: {
       dateconstitution: fr(client.dateConstitution),
     },
     formule: {
-      montantMensuel: eur(client.montantHt),
+      montantMensuel: eur(montantMensuelHt),
       garantie: eur(garantie),
     },
   }

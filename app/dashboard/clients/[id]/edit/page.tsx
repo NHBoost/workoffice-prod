@@ -60,6 +60,7 @@ export default function EditClientPage({ params }: { params: { id: string } }) {
           telephonePerso: body.telephonePerso ?? '',
           centerId: body.centerId ?? '',
           formule: body.formule ?? '',
+          periodicite: body.periodicite ?? 'MENSUEL',
           dateDebut: toDateInput(body.dateDebut),
           dureeMois: body.dureeMois ?? 12,
           montantHt: body.montantHt ?? 0,

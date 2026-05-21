@@ -5,7 +5,10 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Loader2, Save, Building2, User, MapPin } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { FORMULES, FORMULE_LABELS, type Formule } from '@/lib/client-schemas'
+import {
+  FORMULES, FORMULE_LABELS, PERIODICITES, PERIODICITE_LABELS,
+  PRICING, getPriceFor, type Formule, type Periodicite,
+} from '@/lib/client-schemas'
 
 interface CenterOption {
   id: string
@@ -43,6 +46,7 @@ interface ClientFormData {
   // Section C — Domiciliation
   centerId: string
   formule: Formule | ''
+  periodicite: Periodicite
   dateDebut: string
   dureeMois: number
   montantHt: number
@@ -57,8 +61,8 @@ const empty: ClientFormData = {
   dateNaissance: '', lieuNaissance: '', nationalite: 'Belge',
   numeroCi: '', ciDebutValidite: '', ciFinValidite: '',
   registreNational: '', emailPerso: '', telephonePerso: '',
-  centerId: '', formule: '', dateDebut: '', dureeMois: 12,
-  montantHt: 0, tvaTaux: 21,
+  centerId: '', formule: '', periodicite: 'MENSUEL',
+  dateDebut: '', dureeMois: 12, montantHt: 0, tvaTaux: 21,
 }
 
 // ============================================================
@@ -288,7 +292,8 @@ export default function ClientForm({ clientId, initialData }: ClientFormProps = 
 
         {/* === Section C — Domiciliation === */}
         <Section icon={MapPin} title="Section C — Domiciliation & formule"
-          subtitle="Centre de rattachement et conditions commerciales">
+          subtitle="Centre de rattachement, formule officielle Prestigia et périodicité de facturation">
+          {/* Centre */}
           <div>
             <label className="block text-xs font-medium text-text-muted mb-1.5">
               Centre de rattachement <span className="text-danger">*</span>
@@ -307,13 +312,25 @@ export default function ClientForm({ clientId, initialData }: ClientFormProps = 
             {errors.centerId && <p className="text-2xs text-danger mt-1">{errors.centerId}</p>}
           </div>
 
-          <div>
+          {/* Date début */}
+          {field('Date de début du contrat', 'dateDebut', { type: 'date', required: true })}
+
+          {/* Formule */}
+          <div className="sm:col-span-2">
             <label className="block text-xs font-medium text-text-muted mb-1.5">
-              Formule <span className="text-danger">*</span>
+              Formule officielle Prestigia <span className="text-danger">*</span>
             </label>
             <select
               value={data.formule}
-              onChange={e => update('formule', e.target.value as Formule)}
+              onChange={e => {
+                const f = e.target.value as Formule | ''
+                update('formule', f)
+                // Auto-fill du montant si la formule a un tarif officiel
+                if (f && data.periodicite) {
+                  const price = getPriceFor(f, data.periodicite)
+                  if (price > 0) update('montantHt', price)
+                }
+              }}
               required
               className={`w-full px-3 py-2 text-sm rounded-lg border bg-surface text-text outline-none focus:ring-2 focus:ring-gold-400/40 ${errors.formule ? 'border-danger' : 'border-border'}`}
             >
@@ -325,9 +342,61 @@ export default function ClientForm({ clientId, initialData }: ClientFormProps = 
             {errors.formule && <p className="text-2xs text-danger mt-1">{errors.formule}</p>}
           </div>
 
-          {field('Date de début du contrat', 'dateDebut', { type: 'date', required: true })}
+          {/* Periodicite — 3 boutons radio stylés */}
+          <div className="sm:col-span-2">
+            <label className="block text-xs font-medium text-text-muted mb-1.5">
+              Périodicité de facturation <span className="text-danger">*</span>
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {PERIODICITES.map(p => {
+                const price = data.formule ? PRICING[data.formule as Formule]?.[p] : null
+                const isSelected = data.periodicite === p
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => {
+                      update('periodicite', p)
+                      if (data.formule) {
+                        const newPrice = getPriceFor(data.formule as Formule, p)
+                        if (newPrice > 0) update('montantHt', newPrice)
+                      }
+                    }}
+                    className={`px-3 py-2.5 rounded-lg border text-sm transition-all ${
+                      isSelected
+                        ? 'border-gold-500 bg-gold-50 text-gold-700 ring-2 ring-gold-400/40 dark:bg-gold-900/20 dark:text-gold-400'
+                        : 'border-border bg-surface text-text hover:border-gold-300 hover:bg-surface-2'
+                    }`}
+                  >
+                    <div className="font-medium">{PERIODICITE_LABELS[p]}</div>
+                    {price !== null && price !== undefined ? (
+                      <div className="text-2xs mt-0.5 nums-tabular opacity-75">{price} € HTVA</div>
+                    ) : data.formule === 'PACK_SS_UE' ? (
+                      <div className="text-2xs mt-0.5 opacity-60 italic">À définir</div>
+                    ) : null}
+                  </button>
+                )
+              })}
+            </div>
+            {errors.periodicite && <p className="text-2xs text-danger mt-1">{errors.periodicite}</p>}
+          </div>
+
+          {/* Montant HT (auto-rempli mais éditable) */}
+          {field('Montant HT total (€)', 'montantHt', {
+            type: 'number',
+            required: true,
+            placeholder: '0.00',
+            hint: data.formule === 'PACK_SS_UE'
+              ? '💎 Pack — tarif préférentiel à définir manuellement'
+              : data.formule
+                ? `Tarif officiel ${PERIODICITE_LABELS[data.periodicite as Periodicite]?.toLowerCase()} : ${getPriceFor(data.formule as Formule, data.periodicite as Periodicite) || '—'} € HTVA`
+                : "Sélectionne d'abord une formule pour auto-remplir"
+          })}
+
+          {/* Durée engagement */}
           {field("Durée d'engagement (mois)", 'dureeMois', { type: 'number', required: true, hint: 'ex: 12 pour 1 an' })}
-          {field('Montant mensuel HT (€)', 'montantHt', { type: 'number', required: true, placeholder: '0.00' })}
+
+          {/* TVA */}
           {field('TVA %', 'tvaTaux', { type: 'number', required: true, hint: '21% par défaut en Belgique' })}
         </Section>
 

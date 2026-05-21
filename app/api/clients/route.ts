@@ -162,6 +162,7 @@ export async function POST(request: NextRequest) {
         // Section C
         centerId: data.centerId,
         formule: data.formule,
+        periodicite: data.periodicite,
         dateDebut: data.dateDebut,
         dureeMois: data.dureeMois,
         montantHt: data.montantHt,

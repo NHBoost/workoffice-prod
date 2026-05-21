@@ -12,7 +12,7 @@ import {
 import toast from 'react-hot-toast'
 import { Card, Badge, Spinner, EmptyState, ConfirmDialog } from '@/components/ui'
 import { cn, formatCurrency } from '@/lib/utils'
-import { FORMULE_LABELS, type Formule } from '@/lib/client-schemas'
+import { FORMULE_LABELS, PERIODICITE_LABELS, type Formule, type Periodicite } from '@/lib/client-schemas'
 
 interface ClientDetail {
   id: string
@@ -42,6 +42,7 @@ interface ClientDetail {
 
   centerId: string
   formule: Formule
+  periodicite: Periodicite
   dateDebut: string
   dureeMois: number
   montantHt: number
@@ -337,9 +338,10 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
             <div className="space-y-0">
               <Row label="Centre" value={`${client.center.name} — ${client.center.city}`} />
               <Row label="Formule" value={FORMULE_LABELS[client.formule]} />
+              <Row label="Périodicité" value={PERIODICITE_LABELS[client.periodicite]} />
               <Row label="Date de début" value={fr(client.dateDebut)} />
               <Row label="Durée" value={`${client.dureeMois} mois`} />
-              <Row label="Montant HT/mois" value={<span className="font-semibold">{formatCurrency(client.montantHt)}</span>} />
+              <Row label={`Montant HT ${PERIODICITE_LABELS[client.periodicite]?.toLowerCase()}`} value={<span className="font-semibold">{formatCurrency(client.montantHt)}</span>} />
               <Row label="TVA" value={`${client.tvaTaux}%`} />
               <Row label="Garantie (2 mensualités HT)" value={formatCurrency(client.montantHt * 2)} />
             </div>

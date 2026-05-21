@@ -44,12 +44,75 @@ export const personnePhysiqueSchema = z.object({
   telephonePerso: z.string().trim().regex(phoneRegex, 'Téléphone invalide'),
 })
 
-// === Section C ===
-export const FORMULES = ['DOMICILIATION', 'COWORKING_JOUR', 'COWORKING_MOIS', 'BUREAU_PRIVE'] as const
+// === Section C — Formules Prestigia officielles ===
+export const FORMULES = [
+  'SS_PERSONNE_MORALE',  // Siege social - SRL, SA, SNC, SComm, SC
+  'SS_ASBL',             // Siege social - ASBL
+  'UE',                  // Unite d'Etablissement
+  'PACK_SS_UE',          // Pack Siege Social + Unite d'Etablissement (tarif preferentiel)
+] as const
+
+export type Formule = (typeof FORMULES)[number]
+
+export const FORMULE_LABELS: Record<Formule, string> = {
+  SS_PERSONNE_MORALE: 'Domiciliation Siège Social — Personne morale',
+  SS_ASBL: 'Domiciliation Siège Social — ASBL',
+  UE: "Unité d'Établissement",
+  PACK_SS_UE: "Pack Siège Social + Unité d'Établissement",
+}
+
+// === Periodicite de facturation ===
+export const PERIODICITES = ['MENSUEL', 'TRIMESTRIEL', 'ANNUEL'] as const
+export type Periodicite = (typeof PERIODICITES)[number]
+
+export const PERIODICITE_LABELS: Record<Periodicite, string> = {
+  MENSUEL: 'Mensuel',
+  TRIMESTRIEL: 'Trimestriel',
+  ANNUEL: 'Annuel (2 mois offerts)',
+}
+
+/**
+ * Grille tarifaire officielle Prestigia (HTVA).
+ * Source : doc fournie par le client.
+ *
+ * Pour le PACK, le tarif est preferentiel et a definir manuellement
+ * (depend du package commercial — on laisse l'admin saisir le montant).
+ */
+export const PRICING: Record<Formule, Record<Periodicite, number | null>> = {
+  SS_PERSONNE_MORALE: { MENSUEL: 49, TRIMESTRIEL: 147, ANNUEL: 490 },
+  SS_ASBL: { MENSUEL: 25, TRIMESTRIEL: 75, ANNUEL: 250 },
+  UE: { MENSUEL: 60, TRIMESTRIEL: 150, ANNUEL: 300 },
+  PACK_SS_UE: { MENSUEL: null, TRIMESTRIEL: null, ANNUEL: null }, // saisie manuelle
+}
+
+/**
+ * Helper : retourne le montant pre-rempli selon formule + periodicite.
+ * Renvoie 0 si pas de tarif officiel (cas du PACK_SS_UE).
+ */
+export function getPriceFor(formule: Formule, periodicite: Periodicite): number {
+  return PRICING[formule]?.[periodicite] ?? 0
+}
+
+/**
+ * Helper : montant equivalent mensuel HT (pour facturation interne et contrat).
+ * Pour ANNUEL avec 2 mois offerts → on divise par 10 (pas 12) pour le HT/mois reel.
+ */
+export function getMonthlyEquivalent(totalAmount: number, periodicite: Periodicite): number {
+  switch (periodicite) {
+    case 'MENSUEL':
+      return totalAmount
+    case 'TRIMESTRIEL':
+      return totalAmount / 3
+    case 'ANNUEL':
+      // 2 mois offerts → le montant correspond a 10 mois reels
+      return totalAmount / 10
+  }
+}
 
 export const domiciliationSchema = z.object({
   centerId: z.string().trim().min(1, 'Centre requis'),
   formule: z.enum(FORMULES),
+  periodicite: z.enum(PERIODICITES).default('MENSUEL'),
   dateDebut: z.coerce.date(),
   dureeMois: z.coerce.number().int().min(1).max(120).default(12),
   montantHt: z.coerce.number().positive('Montant HT > 0').max(100000),
@@ -75,11 +138,3 @@ export const updateClientSchema = z
   .partial()
 
 export type CreateClientInput = z.infer<typeof createClientSchema>
-export type Formule = (typeof FORMULES)[number]
-
-export const FORMULE_LABELS: Record<Formule, string> = {
-  DOMICILIATION: 'Domiciliation seule',
-  COWORKING_JOUR: 'Coworking jour',
-  COWORKING_MOIS: 'Coworking mois',
-  BUREAU_PRIVE: 'Bureau privé',
-}
