@@ -75,6 +75,12 @@ const nextConfig = {
       { protocol: 'https', hostname: 'images.unsplash.com' },
     ],
   },
+  experimental: {
+    // Puppeteer + Chromium serverless utilisent des private class fields
+    // que webpack ne sait pas parser. On les externalise pour qu'ils soient
+    // require()-es nativement par Node a runtime.
+    serverComponentsExternalPackages: ['puppeteer-core', '@sparticuz/chromium'],
+  },
   async headers() {
     return [
       {

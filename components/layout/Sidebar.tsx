@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Users, Building, MapPin, CalendarDays, Laptop,
   CreditCard, Mail, Package, Send, MessageCircle, BarChart3,
   Settings, QrCode, ChevronLeft, ChevronRight, X, Wallet,
-  LogOut, User as UserIcon, Command,
+  LogOut, User as UserIcon, Command, Contact,
 } from 'lucide-react'
 import { cn, getInitials } from '@/lib/utils'
 import { RoleBadge } from '@/components/ui'
@@ -40,6 +40,7 @@ const sections: NavSection[] = [
   {
     label: 'Opérations',
     items: [
+      { name: 'Clients', href: '/dashboard/clients', icon: Contact },
       { name: 'Entreprises', href: '/dashboard/entreprises', icon: Building },
       { name: 'Salles de réunion', href: '/dashboard/salles-reunion', icon: CalendarDays },
       { name: 'Espaces coworking', href: '/dashboard/espaces-coworking', icon: Laptop },

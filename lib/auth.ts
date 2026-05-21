@@ -111,14 +111,29 @@ export const authOptions: NextAuthOptions = {
         }
 
         // === Succes : reset des compteurs + log de la connexion ===
+        const now = new Date()
+        const isPortalUser = user.role === 'USER'
+
         await prisma.user.update({
           where: { id: user.id },
           data: {
             failedLoginAttempts: 0,
             lockedUntil: null,
-            lastLoginAt: new Date(),
+            lastLoginAt: now,
+            // Si c'est un user du portail, on met aussi a jour lastPortalLoginAt
+            ...(isPortalUser && { lastPortalLoginAt: now }),
           },
         })
+
+        // Si le user est lie a un Client, passe compteStatut à CONNECTE
+        if (isPortalUser) {
+          await prisma.client
+            .updateMany({
+              where: { userId: user.id, compteStatut: 'CREE' },
+              data: { compteStatut: 'CONNECTE' },
+            })
+            .catch(err => console.error('[auth] failed to update client status', err))
+        }
 
         await audit('login.success', {
           actor: { id: user.id, email: user.email, role: user.role },

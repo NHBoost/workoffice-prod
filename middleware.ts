@@ -16,11 +16,13 @@ const ADMIN_ONLY_ROUTES = [
  */
 const STAFF_ONLY_ROUTES = [
   '/dashboard/users',
+  '/dashboard/clients',
   '/dashboard/entreprises',
   '/dashboard/facturation',
   '/dashboard/mailing',
   '/dashboard/kpis_personnel',
   '/api/users',
+  '/api/clients',
   '/api/enterprises',
   '/api/invoices',
   '/api/mailing',
