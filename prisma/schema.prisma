@@ -55,10 +55,14 @@ model User {
   lockedUntil         DateTime?
   // Derniere connexion reussie (audit + UX)
   lastLoginAt         DateTime?
+  // Derniere connexion via le portail client (visible cote admin)
+  lastPortalLoginAt   DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
   center   Center? @relation(fields: [centerId], references: [id])
+  client   Client?
+  passwordSetupToken PasswordSetupToken?
   accounts Account[]
   sessions Session[]
 
@@ -93,6 +97,7 @@ model Center {
   enterprises       Enterprise[]
   meetingRooms      MeetingRoom[]
   coworkingSpaces   CoworkingSpace[]
+  clients           Client[]
   packages          Package[]
   mails             Mail[]
 
@@ -380,6 +385,103 @@ model Settings {
   type  String // 'string', 'number', 'boolean', 'json'
 
   @@map("settings")
+}
+
+// Client domicilie : entite metier complete avec section societe + personne
+// physique + formule. Cree par l'admin via /dashboard/clients/nouveau.
+// Une fois "Creer le compte" cliqué, un User est lie pour le portail client.
+model Client {
+  id                  String   @id @default(cuid())
+
+  // Section A — Societe (toutes obligatoires d'apres CDC)
+  societeDenomination String
+  formeJuridique      String
+  bce                 String   // numero d'entreprise belge (10 chiffres)
+  numeroTva           String   // TVA BE
+  adresseSiege        String
+  emailSociete        String
+  telephoneSociete    String
+  secteurActivite     String   // code NACE ou texte libre
+  dateConstitution    DateTime
+
+  // Section B — Personne physique (representant legal) — obligatoires
+  nom                  String
+  prenom               String
+  fonction             String   // ex: Gerant, Administrateur, CEO
+  adressePersonnelle   String
+  dateNaissance        DateTime
+  lieuNaissance        String
+  nationalite          String
+  // CHIFFRES (AES-256-GCM via lib/crypto.ts) — donnees sensibles RGPD
+  numeroCiEnc          String
+  registreNationalEnc  String
+  ciDebutValidite      DateTime
+  ciFinValidite        DateTime
+  emailPerso           String   @unique  // sert au login du portail
+  telephonePerso       String
+
+  // Section C — Domiciliation & formule
+  centerId             String
+  formule              String   // DOMICILIATION / COWORKING_JOUR / COWORKING_MOIS / BUREAU_PRIVE
+  dateDebut            DateTime
+  dureeMois            Int      @default(12)
+  montantHt            Float
+  tvaTaux              Float    @default(21)
+
+  // Statuts visibles dans la liste admin
+  compteStatut         String   @default("NON_CREE") // NON_CREE / CREE / CONNECTE
+  contratStatut        String   @default("NON_GENERE") // NON_GENERE / ENVOYE / SIGNE
+
+  // Lien vers User une fois "Creer le compte" cliqué (1-to-1 optional)
+  userId               String?  @unique
+  user                 User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  center               Center   @relation(fields: [centerId], references: [id])
+  contrats             ContratClient[]
+
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([centerId])
+  @@index([compteStatut])
+  @@index([contratStatut])
+  @@index([bce])
+  @@index([emailPerso])
+  @@map("clients")
+}
+
+// Historique des contrats generes pour un client.
+// Multi-contrats supporte (renouvellement, avenant).
+model ContratClient {
+  id            String    @id @default(cuid())
+  clientId      String
+  type          String    // domiciliation / coworking_jour / ... (= client.formule au moment de la generation)
+  pdfPath       String    // chemin dans le bucket Supabase Storage 'contracts'
+  pdfPathSigne  String?   // PDF signe upload par l'admin
+  status        String    @default("ENVOYE") // ENVOYE / SIGNE
+  variables     String    @db.Text  // snapshot JSON des variables au moment de la generation
+  sentAt        DateTime  @default(now())
+  signedAt      DateTime?
+  client        Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([status])
+  @@index([sentAt])
+  @@map("contrats_client")
+}
+
+// Token a usage unique pour la definition initiale du mot de passe
+// (lien envoye par email a la creation du compte client).
+// Expire apres 7 jours, marque comme utilise lors de la definition du mdp.
+model PasswordSetupToken {
+  token     String   @id  // cuid genere
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+  @@map("password_setup_tokens")
 }
 
 // Journal d'audit des actions sensibles (creation/maj/suppression d'entites,
