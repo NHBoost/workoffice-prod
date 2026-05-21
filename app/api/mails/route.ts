@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       take: 200,
     })
 
-    return NextResponse.json({ mails, total: mails.length })
+    return NextResponse.json({ mails, total: mails.length }, { headers: { "Cache-Control": "private, max-age=30, stale-while-revalidate=120" } })
   } catch (err) {
     console.error('Error fetching mails:', err)
     return NextResponse.json({ error: 'Failed to fetch mails' }, { status: 500 })

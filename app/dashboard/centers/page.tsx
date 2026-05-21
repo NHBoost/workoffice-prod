@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { getCachedData, setCachedData } from '@/lib/client-cache'
 import Link from 'next/link'
 import {
   MapPin, Plus, Building, Users, CalendarDays, Laptop, Edit, Trash2,
@@ -31,19 +32,26 @@ interface Center {
 }
 
 export default function CentersPage() {
-  const [centers, setCenters] = useState<Center[]>([])
   const [search, setSearch] = useState('')
-  const [loading, setLoading] = useState(true)
   const [confirmDelete, setConfirmDelete] = useState<Center | null>(null)
   const [deleting, setDeleting] = useState(false)
 
+  // Cache localStorage : centres changent rarement, 5 min OK
+  const cacheKey = `centers-list:${search}`
+  const cached = typeof window !== 'undefined' ? getCachedData<Center[]>(cacheKey, 5 * 60_000) : null
+  const [centers, setCenters] = useState<Center[]>(cached ?? [])
+  const [loading, setLoading] = useState(!cached)
+
   const fetchCenters = () => {
-    setLoading(true)
     const params = new URLSearchParams()
     if (search) params.set('search', search)
-    fetch(`/api/centers?${params.toString()}`)
+    fetch(`/api/centers?${params.toString()}`, { cache: 'no-store' })
       .then(r => (r.ok ? r.json() : Promise.reject(r)))
-      .then(d => setCenters(d.centers || []))
+      .then(d => {
+        const list = d.centers || []
+        setCenters(list)
+        setCachedData(cacheKey, list)
+      })
       .catch(() => toast.error('Erreur'))
       .finally(() => setLoading(false))
   }

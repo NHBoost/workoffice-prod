@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
       where: { receiverId: userId, status: 'UNREAD' },
     })
 
-    return NextResponse.json({ messages, total: messages.length, unreadCount })
+    return NextResponse.json({ messages, total: messages.length, unreadCount }, { headers: { "Cache-Control": "private, max-age=30, stale-while-revalidate=120" } })
   } catch (err) {
     console.error('Error fetching messages:', err)
     return NextResponse.json({ error: 'Failed to fetch messages' }, { status: 500 })

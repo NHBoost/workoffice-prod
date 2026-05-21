@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
+import { getCachedData, setCachedData } from '@/lib/client-cache'
 import Link from 'next/link'
 import {
   Package, Plus, CheckCircle, Inbox, RotateCcw, Trash2, Building, MapPin,
@@ -26,22 +27,28 @@ interface PackageItem {
 }
 
 export default function PackagesPage() {
-  const [packages, setPackages] = useState<PackageItem[]>([])
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [loading, setLoading] = useState(true)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<PackageItem | null>(null)
   const [deleting, setDeleting] = useState(false)
+
+  const cacheKey = `packages-list:${search}:${statusFilter}`
+  const cached = typeof window !== 'undefined' ? getCachedData<PackageItem[]>(cacheKey, 60_000) : null
+  const [packages, setPackages] = useState<PackageItem[]>(cached ?? [])
+  const [loading, setLoading] = useState(!cached)
 
   const fetchPackages = () => {
     const params = new URLSearchParams()
     if (search) params.set('search', search)
     if (statusFilter !== 'all') params.set('status', statusFilter)
-    setLoading(true)
-    fetch(`/api/packages?${params.toString()}`)
+    fetch(`/api/packages?${params.toString()}`, { cache: 'no-store' })
       .then(r => (r.ok ? r.json() : Promise.reject(r)))
-      .then(d => setPackages(d.packages || []))
+      .then(d => {
+        const list = d.packages || []
+        setPackages(list)
+        setCachedData(cacheKey, list)
+      })
       .catch(() => toast.error('Erreur'))
       .finally(() => setLoading(false))
   }

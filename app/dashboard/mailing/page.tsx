@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { getCachedData, setCachedData } from '@/lib/client-cache'
 import Link from 'next/link'
 import {
   Send, Plus, Mail, Eye, MousePointer, Calendar, Users, Edit, Trash2,
@@ -30,18 +31,24 @@ interface Campaign {
 const pct = (a: number, b: number) => (b === 0 ? 0 : Math.round((a / b) * 100))
 
 export default function MailingPage() {
-  const [campaigns, setCampaigns] = useState<Campaign[]>([])
-  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [actingId, setActingId] = useState<string | null>(null)
   const [confirmSend, setConfirmSend] = useState<Campaign | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<Campaign | null>(null)
 
+  const cacheKey = 'mailing-campaigns'
+  const cached = typeof window !== 'undefined' ? getCachedData<Campaign[]>(cacheKey, 3 * 60_000) : null
+  const [campaigns, setCampaigns] = useState<Campaign[]>(cached ?? [])
+  const [loading, setLoading] = useState(!cached)
+
   const fetchCampaigns = () => {
-    setLoading(true)
-    fetch('/api/mailing')
+    fetch('/api/mailing', { cache: 'no-store' })
       .then(r => (r.ok ? r.json() : Promise.reject(r)))
-      .then(d => setCampaigns(d.campaigns || []))
+      .then(d => {
+        const list = d.campaigns || []
+        setCampaigns(list)
+        setCachedData(cacheKey, list)
+      })
       .catch(() => toast.error('Erreur'))
       .finally(() => setLoading(false))
   }

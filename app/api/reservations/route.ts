@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
       take: 200,
     })
 
-    return NextResponse.json({ reservations, total: reservations.length })
+    return NextResponse.json({ reservations, total: reservations.length }, { headers: { "Cache-Control": "private, max-age=30, stale-while-revalidate=120" } })
   } catch (err) {
     console.error('Error fetching reservations:', err)
     return NextResponse.json({ error: 'Failed to fetch reservations' }, { status: 500 })

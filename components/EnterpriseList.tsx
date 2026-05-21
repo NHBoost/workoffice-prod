@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { getCachedData, setCachedData } from '@/lib/client-cache'
 import Link from 'next/link'
 import {
   Building, Plus, Eye, Edit, Trash2, MapPin, Calendar, Mail as MailIcon,
@@ -41,16 +42,20 @@ interface Props {
 }
 
 export default function EnterpriseList({ forcedStatus, title, description }: Props) {
-  const [enterprises, setEnterprises] = useState<Enterprise[]>([])
-  const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>(forcedStatus || 'all')
-  const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<Enterprise | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<Enterprise | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [acting, setActing] = useState(false)
+
+  // Cache localStorage : repaint instantane au revisit
+  const cacheKey = `enterprises-list:${forcedStatus || ''}:${statusFilter}:${searchTerm}:${page}`
+  const cached = typeof window !== 'undefined' ? getCachedData<{enterprises: Enterprise[], total: number}>(cacheKey, 2 * 60_000) : null
+  const [enterprises, setEnterprises] = useState<Enterprise[]>(cached?.enterprises ?? [])
+  const [total, setTotal] = useState<number>(cached?.total ?? 0)
+  const [loading, setLoading] = useState(!cached)
 
   const fetchData = () => {
     const params = new URLSearchParams()
@@ -59,12 +64,13 @@ export default function EnterpriseList({ forcedStatus, title, description }: Pro
     if (effective !== 'all') params.set('status', effective)
     params.set('limit', String(PAGE_SIZE))
     params.set('page', String(page))
-    setLoading(true)
-    fetch(`/api/enterprises?${params.toString()}`)
+    fetch(`/api/enterprises?${params.toString()}`, { cache: 'no-store' })
       .then(r => r.ok ? r.json() : Promise.reject(r))
       .then(d => {
-        setEnterprises(d.enterprises || [])
+        const list = d.enterprises || []
+        setEnterprises(list)
         setTotal(d.total || 0)
+        setCachedData(cacheKey, { enterprises: list, total: d.total || 0 })
       })
       .catch(() => toast.error('Erreur de chargement'))
       .finally(() => setLoading(false))

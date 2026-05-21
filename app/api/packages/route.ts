@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
       orderBy: { receivedAt: 'desc' },
       take: 100,
     })
-    return NextResponse.json({ packages, total: packages.length })
+    return NextResponse.json({ packages, total: packages.length }, { headers: { "Cache-Control": "private, max-age=30, stale-while-revalidate=120" } })
   } catch (err) {
     console.error('Error fetching packages:', err)
     return NextResponse.json({ error: 'Failed to fetch packages' }, { status: 500 })

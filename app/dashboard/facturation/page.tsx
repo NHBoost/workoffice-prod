@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
+import { getCachedData, setCachedData } from '@/lib/client-cache'
 import Link from 'next/link'
 import {
   Plus, Download, Eye, CheckCircle, Receipt, Euro, Clock, AlertTriangle,
@@ -30,26 +31,30 @@ interface Invoice {
 const PAGE_SIZE = 12
 
 export default function InvoicesPage() {
-  const [invoices, setInvoices] = useState<Invoice[]>([])
-  const [sumTotal, setSumTotal] = useState(0)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [page, setPage] = useState(1)
-  const [loading, setLoading] = useState(true)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<Invoice | null>(null)
   const [deleting, setDeleting] = useState(false)
+
+  const cacheKey = `invoices-list:${searchTerm}:${statusFilter}:${page}`
+  const cached = typeof window !== 'undefined' ? getCachedData<{invoices: Invoice[], sumTotal: number}>(cacheKey, 2 * 60_000) : null
+  const [invoices, setInvoices] = useState<Invoice[]>(cached?.invoices ?? [])
+  const [sumTotal, setSumTotal] = useState(cached?.sumTotal ?? 0)
+  const [loading, setLoading] = useState(!cached)
 
   const fetchInvoices = () => {
     const params = new URLSearchParams()
     if (searchTerm) params.set('search', searchTerm)
     if (statusFilter !== 'all') params.set('status', statusFilter)
-    setLoading(true)
-    fetch(`/api/invoices?${params.toString()}`)
+    fetch(`/api/invoices?${params.toString()}`, { cache: 'no-store' })
       .then(r => (r.ok ? r.json() : Promise.reject(r)))
       .then(data => {
-        setInvoices(data.invoices || [])
+        const list = data.invoices || []
+        setInvoices(list)
         setSumTotal(data.sumTotal || 0)
+        setCachedData(cacheKey, { invoices: list, sumTotal: data.sumTotal || 0 })
       })
       .catch(() => toast.error('Erreur de chargement'))
       .finally(() => setLoading(false))

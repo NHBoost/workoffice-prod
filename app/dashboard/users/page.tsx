@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { getCachedData, setCachedData } from '@/lib/client-cache'
 import Link from 'next/link'
 import {
   UserPlus, Eye, Edit, Trash2, Download, Mail as MailIcon, Phone,
@@ -27,13 +28,16 @@ interface User {
 const PAGE_SIZE = 10
 
 export default function UsersPage() {
-  const [users, setUsers] = useState<User[]>([])
-  const [total, setTotal] = useState(0)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [roleFilter, setRoleFilter] = useState<string>('all')
   const [page, setPage] = useState(1)
-  const [loading, setLoading] = useState(true)
+
+  const cacheKey = `users-list:${search}:${statusFilter}:${roleFilter}:${page}`
+  const cached = typeof window !== 'undefined' ? getCachedData<{users: User[], total: number}>(cacheKey, 2 * 60_000) : null
+  const [users, setUsers] = useState<User[]>(cached?.users ?? [])
+  const [total, setTotal] = useState(cached?.total ?? 0)
+  const [loading, setLoading] = useState(!cached)
 
   const fetchUsers = () => {
     const params = new URLSearchParams()
@@ -42,12 +46,13 @@ export default function UsersPage() {
     if (roleFilter !== 'all') params.set('role', roleFilter)
     params.set('limit', String(PAGE_SIZE))
     params.set('page', String(page))
-    setLoading(true)
-    fetch(`/api/users?${params.toString()}`)
+    fetch(`/api/users?${params.toString()}`, { cache: 'no-store' })
       .then(r => (r.ok ? r.json() : Promise.reject(r)))
       .then(d => {
-        setUsers(d.users || [])
+        const list = d.users || []
+        setUsers(list)
         setTotal(d.total || 0)
+        setCachedData(cacheKey, { users: list, total: d.total || 0 })
       })
       .catch(() => toast.error('Erreur de chargement'))
       .finally(() => setLoading(false))

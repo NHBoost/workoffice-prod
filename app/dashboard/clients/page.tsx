@@ -12,6 +12,7 @@ import toast from 'react-hot-toast'
 import { Card, Badge, EmptyState, Spinner, ActionMenu, ConfirmDialog } from '@/components/ui'
 import { cn, formatCurrency } from '@/lib/utils'
 import { FORMULE_LABELS, type Formule } from '@/lib/client-schemas'
+import { getCachedData, setCachedData } from '@/lib/client-cache'
 
 interface ClientRow {
   id: string
@@ -55,8 +56,6 @@ function ContratBadge({ status }: { status: ClientRow['contratStatut'] }) {
 // ============ Page ============
 
 export default function ClientsListPage() {
-  const [clients, setClients] = useState<ClientRow[]>([])
-  const [loading, setLoading] = useState(true)
   const router = useRouter()
   const [search, setSearch] = useState('')
   const [filterCompte, setFilterCompte] = useState('')
@@ -64,18 +63,33 @@ export default function ClientsListPage() {
   const [busyId, setBusyId] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<ClientRow | null>(null)
 
+  // Cle de cache : base "clients-list" + key serialisee selon les filtres
+  // (chaque combinaison de filtres a son propre cache, valide 2 min)
+  const cacheKey = `clients-list:${search}:${filterCompte}:${filterContrat}`
+  const [clients, setClients] = useState<ClientRow[]>(() => {
+    if (typeof window === 'undefined') return []
+    return getCachedData<ClientRow[]>(cacheKey, 2 * 60_000) ?? []
+  })
+  const [loading, setLoading] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true
+    return !getCachedData<ClientRow[]>(cacheKey, 2 * 60_000)
+  })
+
   const fetchClients = useCallback(() => {
-    setLoading(true)
     const params = new URLSearchParams()
     if (search) params.set('search', search)
     if (filterCompte) params.set('compteStatut', filterCompte)
     if (filterContrat) params.set('contratStatut', filterContrat)
-    fetch(`/api/clients?${params}`)
+    fetch(`/api/clients?${params}`, { cache: 'no-store' })
       .then(r => r.ok ? r.json() : Promise.reject(r))
-      .then(d => setClients(d.clients || []))
+      .then(d => {
+        const list = d.clients || []
+        setClients(list)
+        setCachedData(cacheKey, list)
+      })
       .catch(() => toast.error('Erreur lors du chargement'))
       .finally(() => setLoading(false))
-  }, [search, filterCompte, filterContrat])
+  }, [search, filterCompte, filterContrat, cacheKey])
 
   useEffect(() => {
     const t = setTimeout(fetchClients, 200)
