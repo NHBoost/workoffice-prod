@@ -20,6 +20,7 @@ import {
   Spinner, EmptyState, Gauge, LiveIndicator, RoleBadge, LiveClock,
 } from '@/components/ui'
 import { cn, formatCurrency } from '@/lib/utils'
+import { getCachedData, setCachedData } from '@/lib/client-cache'
 import type { LucideIcon } from 'lucide-react'
 
 interface OverviewData {
@@ -89,59 +90,105 @@ const formatDayShort = (date: string | Date) =>
   new Date(date).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })
 
 export default function CockpitDashboard() {
-  const [data, setData] = useState<OverviewData | null>(null)
-  const [loading, setLoading] = useState(true)
+  // ============ Strategie de chargement OPTIMISEE ============
+  // 1. Lit le cache localStorage IMMEDIATEMENT (rendu instantane)
+  // 2. Fetch hero (4 KPIs critiques) en priorite → ~100ms TTFB
+  // 3. Fetch overview complet en parallele → ~300-500ms TTFB
+  // 4. Update progressif : hero d'abord, puis le reste
+  // 5. Sauve les fresh data en cache pour le revisit suivant
+  // ===========================================================
+
+  // Initialisation : tente de lire le cache (donc rendu instantane au revisit)
+  const [data, setData] = useState<OverviewData | null>(() =>
+    typeof window !== 'undefined' ? getCachedData<OverviewData>('overview', 5 * 60_000) : null
+  )
+  const [hero, setHero] = useState<any>(() =>
+    typeof window !== 'undefined' ? getCachedData<any>('hero', 60_000) : null
+  )
+  const [loading, setLoading] = useState(!data)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchOverview = useCallback(() => {
-    setLoading(true)
-    fetch('/api/dashboard/overview')
+  const fetchData = useCallback(() => {
+    // Fetch hero (rapide) et overview (complet) EN PARALLELE.
+    // L'utilisateur voit les 4 KPIs au plus vite, le reste se remplit ensuite.
+    const heroPromise = fetch('/api/dashboard/hero', { cache: 'no-store' })
       .then(r => (r.ok ? r.json() : Promise.reject(r)))
-      .then(setData)
+      .then(h => {
+        setHero(h)
+        setCachedData('hero', h)
+      })
+      .catch(err => console.error('[dashboard] hero fetch failed', err))
+
+    const overviewPromise = fetch('/api/dashboard/overview', { cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : Promise.reject(r)))
+      .then(d => {
+        setData(d)
+        setCachedData('overview', d)
+        setError(null)
+      })
       .catch(() => setError('Erreur lors du chargement'))
-      .finally(() => setLoading(false))
+
+    // Loading = false des que l'un des deux est arrive (au plus tot)
+    Promise.race([heroPromise, overviewPromise]).finally(() => setLoading(false))
+    Promise.all([heroPromise, overviewPromise]).finally(() => setLoading(false))
   }, [])
 
   useEffect(() => {
-    fetchOverview()
+    fetchData()
     // Refresh auto toutes les 2 min
-    const t = setInterval(fetchOverview, 120_000)
+    const t = setInterval(fetchData, 120_000)
     return () => clearInterval(t)
-  }, [fetchOverview])
+  }, [fetchData])
 
   // ⚠️ TOUS les hooks doivent etre appeles AVANT toute early-return,
   // sinon React error #310 (hook count incoherent entre renders).
 
-  // Defaults defensifs : evite les crashs si l'API renvoie un payload partiel
+  // Defaults defensifs : evite les crashs si l'API renvoie un payload partiel.
+  // Si overview pas encore charge mais hero arrive : on utilise hero pour les KPIs.
   const kpis = useMemo(() => ({
-    revenue: { value: 0, delta: 0, ...(data?.kpis?.revenue ?? {}) },
+    revenue: {
+      value: data?.kpis?.revenue?.value ?? hero?.revenue?.value ?? 0,
+      delta: data?.kpis?.revenue?.delta ?? hero?.revenue?.delta ?? 0,
+      ...(data?.kpis?.revenue ?? {}),
+    },
     revenueTotal: { value: 0, ...(data?.kpis?.revenueTotal ?? {}) },
     activeEnterprises: { value: 0, delta: 0, ...(data?.kpis?.activeEnterprises ?? {}) },
     reservationsToday: { value: 0, ...(data?.kpis?.reservationsToday ?? {}) },
-    packagesPending: { value: 0, ...(data?.kpis?.packagesPending ?? {}) },
-    mailsPending: { value: 0, ...(data?.kpis?.mailsPending ?? {}) },
-    overdueInvoices: { value: 0, amount: 0, delta: 0, ...(data?.kpis?.overdueInvoices ?? {}) },
+    packagesPending: {
+      value: data?.kpis?.packagesPending?.value ?? hero?.alerts?.packagesPending ?? 0,
+      ...(data?.kpis?.packagesPending ?? {}),
+    },
+    mailsPending: {
+      value: data?.kpis?.mailsPending?.value ?? hero?.alerts?.mailsPending ?? 0,
+      ...(data?.kpis?.mailsPending ?? {}),
+    },
+    overdueInvoices: {
+      value: data?.kpis?.overdueInvoices?.value ?? hero?.alerts?.overdueInvoices ?? 0,
+      amount: 0,
+      delta: 0,
+      ...(data?.kpis?.overdueInvoices ?? {}),
+    },
     activeUsers: { value: 0, newThisMonth: 0, ...(data?.kpis?.activeUsers ?? {}) },
-  }), [data])
+  }), [data, hero])
 
   const revenueChart = data?.revenueChart ?? []
   const centersSummary = data?.centersSummary ?? []
   const activity = data?.activity ?? []
   const alerts = useMemo(() => ({
     overdueInvoices: data?.alerts?.overdueInvoices ?? [],
-    packagesPending: data?.alerts?.packagesPending ?? 0,
-    mailsPending: data?.alerts?.mailsPending ?? 0,
-  }), [data])
+    packagesPending: data?.alerts?.packagesPending ?? hero?.alerts?.packagesPending ?? 0,
+    mailsPending: data?.alerts?.mailsPending ?? hero?.alerts?.mailsPending ?? 0,
+  }), [data, hero])
   const cockpit = useMemo(() => ({
     upcomingReservations: data?.cockpit?.upcomingReservations ?? [],
     topEnterprises: data?.cockpit?.topEnterprises ?? [],
-    globalOccupancy: data?.cockpit?.globalOccupancy ?? 0,
-    totalRoomsCount: data?.cockpit?.totalRoomsCount ?? 0,
-    occupiedTodayCount: data?.cockpit?.occupiedTodayCount ?? 0,
+    globalOccupancy: data?.cockpit?.globalOccupancy ?? hero?.occupancy?.percent ?? 0,
+    totalRoomsCount: data?.cockpit?.totalRoomsCount ?? hero?.occupancy?.total ?? 0,
+    occupiedTodayCount: data?.cockpit?.occupiedTodayCount ?? hero?.occupancy?.occupied ?? 0,
     subscriptionsBreakdown: data?.cockpit?.subscriptionsBreakdown ?? [],
-    mrr: data?.cockpit?.mrr ?? 0,
+    mrr: data?.cockpit?.mrr ?? hero?.mrr ?? 0,
     timestamp: data?.cockpit?.timestamp ?? '',
-  }), [data])
+  }), [data, hero])
 
   // Totaux dérivés mémoïsés
   const alertsCount = useMemo(
@@ -158,7 +205,8 @@ export default function CockpitDashboard() {
   )
 
   // Early-returns APRES tous les hooks (rule of hooks)
-  if (loading && !data) {
+  // On affiche le skeleton SEULEMENT si ni cache ni hero ni data
+  if (loading && !data && !hero) {
     return (
       <div className="p-6">
         <PageHeader title="Vue d'ensemble" description="Chargement de votre tableau de pilotage..." />
@@ -169,7 +217,8 @@ export default function CockpitDashboard() {
     )
   }
 
-  if (error || !data) {
+  // Erreur SEULEMENT si pas de data ET pas de hero (sinon on affiche avec ce qu'on a)
+  if (error && !data && !hero) {
     return (
       <div className="p-6">
         <Card className="p-6">
@@ -200,7 +249,7 @@ export default function CockpitDashboard() {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <button
-            onClick={fetchOverview}
+            onClick={fetchData}
             disabled={loading}
             className="btn btn-secondary"
             title="Actualiser maintenant"
