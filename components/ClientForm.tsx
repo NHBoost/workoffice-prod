@@ -61,6 +61,75 @@ const empty: ClientFormData = {
   montantHt: 0, tvaTaux: 21,
 }
 
+// ============================================================
+// Composants extraits HORS du parent — sinon recreation a chaque
+// render -> remount des inputs -> perte de focus apres 1 frappe.
+// ============================================================
+
+interface FieldProps {
+  label: string
+  name: keyof ClientFormData
+  type?: string
+  required?: boolean
+  placeholder?: string
+  hint?: string
+  colSpan?: 1 | 2 | 3
+  value: string | number
+  error?: string
+  onChange: (value: string | number) => void
+}
+
+function Field({
+  label, name, type = 'text', required, placeholder, hint,
+  colSpan = 1, value, error, onChange,
+}: FieldProps) {
+  return (
+    <div className={colSpan === 2 ? 'sm:col-span-2' : colSpan === 3 ? 'sm:col-span-3' : ''}>
+      <label className="block text-xs font-medium text-text-muted mb-1.5">
+        {label} {required && <span className="text-danger">*</span>}
+      </label>
+      <input
+        type={type}
+        value={value}
+        onChange={e => onChange(type === 'number' ? Number(e.target.value) : e.target.value)}
+        placeholder={placeholder}
+        required={required}
+        className={`w-full px-3 py-2 text-sm rounded-lg border bg-surface text-text outline-none transition-colors focus:ring-2 focus:ring-gold-400/40 focus:border-gold-500 ${error ? 'border-danger' : 'border-border'}`}
+      />
+      {hint && !error && <p className="text-2xs text-text-subtle mt-1">{hint}</p>}
+      {error && <p className="text-2xs text-danger mt-1">{error}</p>}
+    </div>
+  )
+}
+
+interface SectionProps {
+  icon: any
+  title: string
+  subtitle: string
+  children: ReactNode
+}
+
+function Section({ icon: Icon, title, subtitle, children }: SectionProps) {
+  return (
+    <div className="card p-6">
+      <div className="flex items-start gap-3 mb-5 pb-4 border-b border-border">
+        <div className="h-10 w-10 rounded-lg bg-gold-50 text-gold-600 dark:bg-gold-900/30 dark:text-gold-400 flex items-center justify-center shrink-0">
+          <Icon className="h-5 w-5" />
+        </div>
+        <div>
+          <h2 className="text-md font-semibold tracking-tight text-text">{title}</h2>
+          <p className="text-xs text-text-muted mt-0.5">{subtitle}</p>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">{children}</div>
+    </div>
+  )
+}
+
+// ============================================================
+// Composant principal
+// ============================================================
+
 export default function ClientForm() {
   const router = useRouter()
   const [data, setData] = useState<ClientFormData>(empty)
@@ -112,53 +181,26 @@ export default function ClientForm() {
     }
   }
 
-  // ============ helpers UI ============
-  const Field = ({
-    label, name, type = 'text', required = false, placeholder, hint,
-    colSpan = 1, value, onChange,
-  }: {
-    label: string
-    name: keyof ClientFormData
-    type?: string
-    required?: boolean
-    placeholder?: string
-    hint?: string
-    colSpan?: 1 | 2 | 3
-    value?: string | number
-    onChange?: (v: string) => void
-  }) => (
-    <div className={colSpan === 2 ? 'sm:col-span-2' : colSpan === 3 ? 'sm:col-span-3' : ''}>
-      <label className="block text-xs font-medium text-text-muted mb-1.5">
-        {label} {required && <span className="text-danger">*</span>}
-      </label>
-      <input
-        type={type}
-        value={value !== undefined ? value : (data[name] as any)}
-        onChange={e => onChange ? onChange(e.target.value) : update(name, type === 'number' ? Number(e.target.value) as any : e.target.value as any)}
-        placeholder={placeholder}
-        required={required}
-        className={`w-full px-3 py-2 text-sm rounded-lg border bg-surface text-text outline-none transition-colors focus:ring-2 focus:ring-gold-400/40 focus:border-gold-500 ${errors[name] ? 'border-danger' : 'border-border'}`}
-      />
-      {hint && !errors[name] && <p className="text-2xs text-text-subtle mt-1">{hint}</p>}
-      {errors[name] && <p className="text-2xs text-danger mt-1">{errors[name]}</p>}
-    </div>
-  )
-
-  const Section = ({ icon: Icon, title, subtitle, children }: {
-    icon: any; title: string; subtitle: string; children: ReactNode
-  }) => (
-    <div className="card p-6">
-      <div className="flex items-start gap-3 mb-5 pb-4 border-b border-border">
-        <div className="h-10 w-10 rounded-lg bg-gold-50 text-gold-600 dark:bg-gold-900/30 dark:text-gold-400 flex items-center justify-center shrink-0">
-          <Icon className="h-5 w-5" />
-        </div>
-        <div>
-          <h2 className="text-md font-semibold tracking-tight text-text">{title}</h2>
-          <p className="text-xs text-text-muted mt-0.5">{subtitle}</p>
-        </div>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">{children}</div>
-    </div>
+  // Wrapper pratique pour passer les bonnes props a chaque <Field>
+  const field = (
+    label: string,
+    name: keyof ClientFormData,
+    extra: {
+      type?: string
+      required?: boolean
+      placeholder?: string
+      hint?: string
+      colSpan?: 1 | 2 | 3
+    } = {}
+  ) => (
+    <Field
+      label={label}
+      name={name}
+      value={data[name] as any}
+      error={errors[name]}
+      onChange={v => update(name, v as any)}
+      {...extra}
+    />
   )
 
   return (
@@ -181,47 +223,33 @@ export default function ClientForm() {
         {/* === Section A — Société === */}
         <Section icon={Building2} title="Section A — Société"
           subtitle="Données de la personne morale (utilisées dans le contrat)">
-          <Field label="Dénomination sociale" name="societeDenomination" required colSpan={2}
-            placeholder="ex: ACME Consulting SRL" />
-          <Field label="Forme juridique" name="formeJuridique" required
-            placeholder="SRL, SA, SCS..." />
-          <Field label="Numéro d'entreprise (BCE)" name="bce" required
-            placeholder="0123.456.789" hint="10 chiffres" />
-          <Field label="Numéro de TVA" name="numeroTva" required
-            placeholder="BE0123.456.789" />
-          <Field label="Adresse du siège social" name="adresseSiege" required colSpan={2}
-            placeholder="Rue, n°, code postal, ville" />
-          <Field label="E-mail société" name="emailSociete" type="email" required
-            placeholder="contact@societe.com" />
-          <Field label="Téléphone société" name="telephoneSociete" required
-            placeholder="+32 2 123 45 67" />
-          <Field label="Secteur d'activité" name="secteurActivite" required
-            placeholder="Consultance, code NACE ou texte" />
-          <Field label="Date de constitution" name="dateConstitution" type="date" required />
+          {field('Dénomination sociale', 'societeDenomination', { required: true, colSpan: 2, placeholder: 'ex: ACME Consulting SRL' })}
+          {field('Forme juridique', 'formeJuridique', { required: true, placeholder: 'SRL, SA, SCS...' })}
+          {field("Numéro d'entreprise (BCE)", 'bce', { required: true, placeholder: '0123.456.789', hint: '10 chiffres' })}
+          {field('Numéro de TVA', 'numeroTva', { required: true, placeholder: 'BE0123.456.789' })}
+          {field('Adresse du siège social', 'adresseSiege', { required: true, colSpan: 2, placeholder: 'Rue, n°, code postal, ville' })}
+          {field('E-mail société', 'emailSociete', { type: 'email', required: true, placeholder: 'contact@societe.com' })}
+          {field('Téléphone société', 'telephoneSociete', { required: true, placeholder: '+32 2 123 45 67' })}
+          {field("Secteur d'activité", 'secteurActivite', { required: true, placeholder: 'Consultance, code NACE ou texte' })}
+          {field('Date de constitution', 'dateConstitution', { type: 'date', required: true })}
         </Section>
 
         {/* === Section B — Personne physique === */}
         <Section icon={User} title="Section B — Représentant légal"
           subtitle="Personne physique signataire (chiffré pour CI et registre national)">
-          <Field label="Nom" name="nom" required placeholder="Dupont" />
-          <Field label="Prénom" name="prenom" required placeholder="Jean" />
-          <Field label="Fonction dans la société" name="fonction" required colSpan={2}
-            placeholder="Gérant, Administrateur, CEO..." />
-          <Field label="Adresse personnelle" name="adressePersonnelle" required colSpan={2}
-            placeholder="Rue, n°, code postal, ville" />
-          <Field label="Date de naissance" name="dateNaissance" type="date" required />
-          <Field label="Lieu de naissance" name="lieuNaissance" required placeholder="Bruxelles" />
-          <Field label="Nationalité" name="nationalite" required placeholder="Belge" />
-          <Field label="Numéro de carte d'identité" name="numeroCi" required
-            placeholder="123-1234567-12" hint="🔒 Chiffré à l'insertion" />
-          <Field label="Validité CI — début" name="ciDebutValidite" type="date" required />
-          <Field label="Validité CI — fin" name="ciFinValidite" type="date" required />
-          <Field label="N° Registre national" name="registreNational" required colSpan={2}
-            placeholder="80.01.01-123.45" hint="🔒 Chiffré à l'insertion" />
-          <Field label="E-mail personnel (login portail)" name="emailPerso" type="email" required
-            placeholder="jean.dupont@email.com" hint="Servira au login du portail client" />
-          <Field label="Téléphone personnel" name="telephonePerso" required
-            placeholder="+32 470 12 34 56" />
+          {field('Nom', 'nom', { required: true, placeholder: 'Dupont' })}
+          {field('Prénom', 'prenom', { required: true, placeholder: 'Jean' })}
+          {field('Fonction dans la société', 'fonction', { required: true, colSpan: 2, placeholder: 'Gérant, Administrateur, CEO...' })}
+          {field('Adresse personnelle', 'adressePersonnelle', { required: true, colSpan: 2, placeholder: 'Rue, n°, code postal, ville' })}
+          {field('Date de naissance', 'dateNaissance', { type: 'date', required: true })}
+          {field('Lieu de naissance', 'lieuNaissance', { required: true, placeholder: 'Bruxelles' })}
+          {field('Nationalité', 'nationalite', { required: true, placeholder: 'Belge' })}
+          {field("Numéro de carte d'identité", 'numeroCi', { required: true, placeholder: '123-1234567-12', hint: "🔒 Chiffré à l'insertion" })}
+          {field('Validité CI — début', 'ciDebutValidite', { type: 'date', required: true })}
+          {field('Validité CI — fin', 'ciFinValidite', { type: 'date', required: true })}
+          {field('N° Registre national', 'registreNational', { required: true, colSpan: 2, placeholder: '80.01.01-123.45', hint: "🔒 Chiffré à l'insertion" })}
+          {field('E-mail personnel (login portail)', 'emailPerso', { type: 'email', required: true, placeholder: 'jean.dupont@email.com', hint: 'Servira au login du portail client' })}
+          {field('Téléphone personnel', 'telephonePerso', { required: true, placeholder: '+32 470 12 34 56' })}
         </Section>
 
         {/* === Section C — Domiciliation === */}
@@ -263,13 +291,10 @@ export default function ClientForm() {
             {errors.formule && <p className="text-2xs text-danger mt-1">{errors.formule}</p>}
           </div>
 
-          <Field label="Date de début du contrat" name="dateDebut" type="date" required />
-          <Field label="Durée d'engagement (mois)" name="dureeMois" type="number" required
-            hint="ex: 12 pour 1 an" />
-          <Field label="Montant mensuel HT (€)" name="montantHt" type="number" required
-            placeholder="0.00" />
-          <Field label="TVA %" name="tvaTaux" type="number" required
-            hint="21% par défaut en Belgique" />
+          {field('Date de début du contrat', 'dateDebut', { type: 'date', required: true })}
+          {field("Durée d'engagement (mois)", 'dureeMois', { type: 'number', required: true, hint: 'ex: 12 pour 1 an' })}
+          {field('Montant mensuel HT (€)', 'montantHt', { type: 'number', required: true, placeholder: '0.00' })}
+          {field('TVA %', 'tvaTaux', { type: 'number', required: true, hint: '21% par défaut en Belgique' })}
         </Section>
 
         {/* === Actions === */}
