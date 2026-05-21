@@ -121,12 +121,16 @@ export async function POST(
       request,
     })
 
+    // Si l'email n'a pas pu partir (Resend pas configure ou erreur), on renvoie
+    // le setupUrl pour que l'admin puisse le transmettre manuellement au client.
+    const emailFailedOrSkipped = !emailResult.ok || emailResult.id === 'dev-mode'
+
     return NextResponse.json({
       ok: true,
-      emailSent: emailResult.ok,
+      emailSent: emailResult.ok && emailResult.id !== 'dev-mode',
       emailError: emailResult.error,
-      // En dev seulement on retourne le lien pour le tester sans email
-      ...(process.env.NODE_ENV !== 'production' && { setupUrl }),
+      // Toujours en dev, et aussi en prod si l'email a echoue (fallback admin)
+      ...(emailFailedOrSkipped && { setupUrl }),
     })
   } catch (err: any) {
     console.error('[api/clients/[id]/account]', err)

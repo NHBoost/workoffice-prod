@@ -89,7 +89,19 @@ export default function ClientsListPage() {
         toast.error(body.error || 'Erreur lors de la création du compte')
         return
       }
-      toast.success('Compte créé — email envoyé au client')
+      if (body.emailSent) {
+        toast.success('Compte créé — email envoyé au client ✓')
+      } else if (body.setupUrl) {
+        // Fallback : email non envoye (Resend pas configure), on copie l'URL
+        await navigator.clipboard.writeText(body.setupUrl).catch(() => {})
+        toast.success(
+          'Compte créé. L\'email n\'a pas pu être envoyé — le lien d\'activation a été copié dans le presse-papier.',
+          { duration: 8000 }
+        )
+        console.log('🔗 setupUrl:', body.setupUrl)
+      } else {
+        toast.success('Compte créé')
+      }
       fetchClients()
     } finally {
       setBusyId(null)
@@ -108,7 +120,21 @@ export default function ClientsListPage() {
         }
         return
       }
-      toast.success('Contrat généré et envoyé au client par email')
+      if (body.missing?.length) {
+        console.warn('Variables non remplies dans le PDF :', body.missing)
+      }
+      if (body.emailSent) {
+        toast.success('Contrat généré et envoyé par email ✓')
+      } else if (body.downloadUrl) {
+        // Fallback : ouvre le PDF dans un nouvel onglet
+        window.open(body.downloadUrl, '_blank', 'noopener,noreferrer')
+        toast.success(
+          'Contrat généré. L\'email n\'a pas pu être envoyé — le PDF s\'ouvre dans un nouvel onglet.',
+          { duration: 8000 }
+        )
+      } else {
+        toast.success('Contrat généré')
+      }
       fetchClients()
     } finally {
       setBusyId(null)

@@ -5,7 +5,7 @@ import { checkRateLimit } from '@/lib/api-rate-limit'
 import { audit } from '@/lib/audit'
 import { decrypt } from '@/lib/crypto'
 import { renderHtmlToPdf, mergePdfs } from '@/lib/pdf'
-import { uploadPdf, signedUrl } from '@/lib/storage'
+import { uploadPdf, signedUrl as makeSignedUrl } from '@/lib/storage'
 import { sendEmail, contractEmail } from '@/lib/email'
 import { renderAllContractTemplates, clientToVariables } from '@/lib/contract-templates'
 import { FORMULE_LABELS } from '@/lib/client-schemas'
@@ -149,13 +149,26 @@ export async function POST(
       request,
     })
 
+    // Si l'email n'a pas pu partir, on renvoie une URL signee (1h) pour que
+    // l'admin puisse telecharger le PDF et le transmettre manuellement.
+    const emailFailedOrSkipped = !emailResult.ok || emailResult.id === 'dev-mode'
+    let downloadUrl: string | null = null
+    if (emailFailedOrSkipped) {
+      try {
+        downloadUrl = await makeSignedUrl(pdfPath, 3600)
+      } catch (e) {
+        console.error('[contrat] could not generate signed download URL', e)
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       contractId: contractRow.id,
       pdfPath,
-      emailSent: emailResult.ok,
+      emailSent: emailResult.ok && emailResult.id !== 'dev-mode',
       emailError: emailResult.error,
       missing,
+      ...(downloadUrl && { downloadUrl }),
     })
   } catch (err: any) {
     console.error('[api/clients/[id]/contrat POST]', err)
@@ -189,10 +202,10 @@ export async function GET(
         let urlSigne: string | null = null
         try {
           if (c.pdfPath && c.pdfPath !== '__pending__') {
-            url = await signedUrl(c.pdfPath, 3600)
+            url = await makeSignedUrl(c.pdfPath, 3600)
           }
           if (c.pdfPathSigne) {
-            urlSigne = await signedUrl(c.pdfPathSigne, 3600)
+            urlSigne = await makeSignedUrl(c.pdfPathSigne, 3600)
           }
         } catch (e) {
           console.error('[contrat GET] sign url failed', e)
