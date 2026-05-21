@@ -130,9 +130,17 @@ function Section({ icon: Icon, title, subtitle, children }: SectionProps) {
 // Composant principal
 // ============================================================
 
-export default function ClientForm() {
+interface ClientFormProps {
+  /** Mode edition : si fourni, le formulaire est pré-rempli et POST → PATCH /api/clients/[id] */
+  clientId?: string
+  /** Donnees initiales pour le mode edition */
+  initialData?: Partial<ClientFormData>
+}
+
+export default function ClientForm({ clientId, initialData }: ClientFormProps = {}) {
   const router = useRouter()
-  const [data, setData] = useState<ClientFormData>(empty)
+  const isEdit = !!clientId
+  const [data, setData] = useState<ClientFormData>({ ...empty, ...initialData })
   const [centers, setCenters] = useState<CenterOption[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -152,27 +160,38 @@ export default function ClientForm() {
     setErrors({})
     setSubmitting(true)
     try {
-      const res = await fetch('/api/clients', {
-        method: 'POST',
+      // Mode edition : on n'envoie pas les champs sensibles s'ils sont vides
+      // (l'admin a laisse le placeholder pour conserver la valeur existante)
+      let body: any = { ...data }
+      if (isEdit) {
+        if (!data.numeroCi || data.numeroCi.trim() === '') delete body.numeroCi
+        if (!data.registreNational || data.registreNational.trim() === '') delete body.registreNational
+      }
+
+      const url = isEdit ? `/api/clients/${clientId}` : '/api/clients'
+      const method = isEdit ? 'PATCH' : 'POST'
+
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify(body),
       })
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        if (body.details) {
+        const errBody = await res.json().catch(() => ({}))
+        if (errBody.details) {
           const fieldErrors: Record<string, string> = {}
-          for (const e of body.details) {
+          for (const e of errBody.details) {
             if (e.path?.[0]) fieldErrors[e.path[0]] = e.message
           }
           setErrors(fieldErrors)
           toast.error('Vérifie les champs en rouge')
         } else {
-          toast.error(body.error || 'Erreur lors de l\'enregistrement')
+          toast.error(errBody.error || 'Erreur lors de l\'enregistrement')
         }
         return
       }
-      toast.success('Client créé avec succès')
-      router.push('/dashboard/clients')
+      toast.success(isEdit ? 'Client mis à jour' : 'Client créé avec succès')
+      router.push(isEdit ? `/dashboard/clients/${clientId}` : '/dashboard/clients')
       router.refresh()
     } catch {
       toast.error('Erreur réseau')
@@ -208,13 +227,19 @@ export default function ClientForm() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Link href="/dashboard/clients" className="btn btn-ghost">
+          <Link href={isEdit ? `/dashboard/clients/${clientId}` : '/dashboard/clients'} className="btn btn-ghost">
             <ArrowLeft className="h-4 w-4" />
             Retour
           </Link>
           <div>
-            <h1 className="text-2xl font-semibold tracking-tighter text-text">Nouveau client</h1>
-            <p className="text-sm text-text-muted">Encodage en 3 sections — données chiffrées pour les champs sensibles</p>
+            <h1 className="text-2xl font-semibold tracking-tighter text-text">
+              {isEdit ? 'Modifier le client' : 'Nouveau client'}
+            </h1>
+            <p className="text-sm text-text-muted">
+              {isEdit
+                ? 'Modifie les champs nécessaires — laisse vide les champs CI/Registre national pour conserver les valeurs actuelles'
+                : 'Encodage en 3 sections — données chiffrées pour les champs sensibles'}
+            </p>
           </div>
         </div>
       </div>
@@ -244,10 +269,19 @@ export default function ClientForm() {
           {field('Date de naissance', 'dateNaissance', { type: 'date', required: true })}
           {field('Lieu de naissance', 'lieuNaissance', { required: true, placeholder: 'Bruxelles' })}
           {field('Nationalité', 'nationalite', { required: true, placeholder: 'Belge' })}
-          {field("Numéro de carte d'identité", 'numeroCi', { required: true, placeholder: '123-1234567-12', hint: "🔒 Chiffré à l'insertion" })}
+          {field("Numéro de carte d'identité", 'numeroCi', {
+            required: !isEdit,
+            placeholder: isEdit ? 'Laisse vide pour conserver la valeur actuelle' : '123-1234567-12',
+            hint: isEdit ? '🔒 Valeur existante chiffrée — tape une nouvelle valeur pour la modifier' : "🔒 Chiffré à l'insertion"
+          })}
           {field('Validité CI — début', 'ciDebutValidite', { type: 'date', required: true })}
           {field('Validité CI — fin', 'ciFinValidite', { type: 'date', required: true })}
-          {field('N° Registre national', 'registreNational', { required: true, colSpan: 2, placeholder: '80.01.01-123.45', hint: "🔒 Chiffré à l'insertion" })}
+          {field('N° Registre national', 'registreNational', {
+            required: !isEdit,
+            colSpan: 2,
+            placeholder: isEdit ? 'Laisse vide pour conserver la valeur actuelle' : '80.01.01-123.45',
+            hint: isEdit ? '🔒 Valeur existante chiffrée — tape une nouvelle valeur pour la modifier' : "🔒 Chiffré à l'insertion"
+          })}
           {field('E-mail personnel (login portail)', 'emailPerso', { type: 'email', required: true, placeholder: 'jean.dupont@email.com', hint: 'Servira au login du portail client' })}
           {field('Téléphone personnel', 'telephonePerso', { required: true, placeholder: '+32 470 12 34 56' })}
         </Section>

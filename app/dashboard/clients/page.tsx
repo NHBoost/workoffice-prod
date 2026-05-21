@@ -5,9 +5,11 @@ import Link from 'next/link'
 import {
   Plus, Search, Loader2, UserPlus, FileText, Upload, CheckCircle2,
   Mail, Phone, Calendar, MoreVertical, Building2, AlertCircle,
+  Eye, Edit, Trash2,
 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
-import { Card, Badge, EmptyState, Spinner } from '@/components/ui'
+import { Card, Badge, EmptyState, Spinner, ActionMenu, ConfirmDialog } from '@/components/ui'
 import { cn, formatCurrency } from '@/lib/utils'
 import { FORMULE_LABELS, type Formule } from '@/lib/client-schemas'
 
@@ -55,10 +57,12 @@ function ContratBadge({ status }: { status: ClientRow['contratStatut'] }) {
 export default function ClientsListPage() {
   const [clients, setClients] = useState<ClientRow[]>([])
   const [loading, setLoading] = useState(true)
+  const router = useRouter()
   const [search, setSearch] = useState('')
   const [filterCompte, setFilterCompte] = useState('')
   const [filterContrat, setFilterContrat] = useState('')
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<ClientRow | null>(null)
 
   const fetchClients = useCallback(() => {
     setLoading(true)
@@ -170,6 +174,24 @@ export default function ClientsListPage() {
     input.click()
   }
 
+  const deleteClient = async () => {
+    if (!confirmDeleteId) return
+    setBusyId(confirmDeleteId.id)
+    try {
+      const res = await fetch(`/api/clients/${confirmDeleteId.id}`, { method: 'DELETE' })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(body.error || 'Suppression échouée')
+        return
+      }
+      toast.success(`Client ${confirmDeleteId.societeDenomination} supprimé`)
+      setConfirmDeleteId(null)
+      fetchClients()
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   // ============ Render ============
 
   return (
@@ -276,6 +298,7 @@ export default function ClientsListPage() {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="inline-flex items-center gap-1.5 justify-end">
+                        {/* Actions contextuelles selon le statut */}
                         {c.compteStatut === 'NON_CREE' && (
                           <button
                             onClick={() => createAccount(c.id)}
@@ -284,10 +307,10 @@ export default function ClientsListPage() {
                             title="Crée le compte et envoie l'email d'activation"
                           >
                             {busyId === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserPlus className="h-3 w-3" />}
-                            Créer compte
+                            Compte
                           </button>
                         )}
-                        {c.contratStatut === 'NON_GENERE' ? (
+                        {c.contratStatut === 'NON_GENERE' && (
                           <button
                             onClick={() => generateContract(c.id)}
                             disabled={busyId === c.id}
@@ -295,9 +318,10 @@ export default function ClientsListPage() {
                             title="Génère le PDF et l'envoie par email"
                           >
                             {busyId === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />}
-                            Générer contrat
+                            Contrat
                           </button>
-                        ) : c.contratStatut === 'ENVOYE' ? (
+                        )}
+                        {c.contratStatut === 'ENVOYE' && (
                           <button
                             onClick={() => uploadSigned(c.id)}
                             disabled={busyId === c.id}
@@ -305,9 +329,31 @@ export default function ClientsListPage() {
                             title="Téléverse le contrat signé par le client"
                           >
                             {busyId === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
-                            Téléverser signé
+                            Signé
                           </button>
-                        ) : null}
+                        )}
+
+                        {/* Menu kebab : voir / editer / supprimer */}
+                        <ActionMenu
+                          items={[
+                            {
+                              label: 'Voir le détail',
+                              icon: Eye,
+                              onClick: () => router.push(`/dashboard/clients/${c.id}`),
+                            },
+                            {
+                              label: 'Modifier',
+                              icon: Edit,
+                              onClick: () => router.push(`/dashboard/clients/${c.id}/edit`),
+                            },
+                            {
+                              label: 'Supprimer',
+                              icon: Trash2,
+                              danger: true,
+                              onClick: () => setConfirmDeleteId(c),
+                            },
+                          ]}
+                        />
                       </div>
                     </td>
                   </tr>
@@ -317,6 +363,22 @@ export default function ClientsListPage() {
           </div>
         </Card>
       )}
+
+      {/* Dialog confirmation suppression */}
+      <ConfirmDialog
+        open={!!confirmDeleteId}
+        onClose={() => setConfirmDeleteId(null)}
+        onConfirm={deleteClient}
+        loading={busyId === confirmDeleteId?.id}
+        title="Supprimer le client ?"
+        description={
+          confirmDeleteId
+            ? `Cette action supprimera définitivement ${confirmDeleteId.societeDenomination} (${confirmDeleteId.prenom} ${confirmDeleteId.nom}) et tous ses contrats. Le compte utilisateur lié sera conservé mais détaché. Cette action est irréversible.`
+            : ''
+        }
+        confirmLabel="Supprimer définitivement"
+        tone="danger"
+      />
     </div>
   )
 }
