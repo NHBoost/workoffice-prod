@@ -80,6 +80,13 @@ const nextConfig = {
     // que webpack ne sait pas parser. On les externalise pour qu'ils soient
     // require()-es nativement par Node a runtime.
     serverComponentsExternalPackages: ['puppeteer-core', '@sparticuz/chromium'],
+    // Inclut les templates HTML de contrats dans le bundle serverless Vercel.
+    // Sans ça, fs.readFileSync('contract-templates/*.html') plante en prod
+    // car ces fichiers ne sont pas referenced statiquement par l'import graph.
+    outputFileTracingIncludes: {
+      '/api/clients/[id]/contrat': ['./contract-templates/**/*'],
+      '/api/debug/health': ['./contract-templates/**/*'],
+    },
   },
   async headers() {
     return [

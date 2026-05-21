@@ -87,16 +87,30 @@ export async function GET(_request: NextRequest) {
   }
 
   // === 5. Resend API : verif credentials ===
+  // On test l'endpoint /api-keys qui marche avec n'importe quel type de cle
+  // (sending-only ou full-access). Si la cle est invalide, 401.
   try {
     if (!process.env.RESEND_API_KEY) {
       checks.push({ name: 'resend.api', ok: false, detail: 'RESEND_API_KEY absent' })
     } else {
+      // Try /domains first (full-access keys), fallback to detect sending-only
       const res = await fetch('https://api.resend.com/domains', {
         headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
       })
       const body = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        checks.push({ name: 'resend.api', ok: false, detail: `HTTP ${res.status} : ${JSON.stringify(body)}` })
+      if (res.status === 401 && body?.name === 'restricted_api_key') {
+        // Cle "sending-only" : OK, juste pas les droits pour lister les domaines
+        checks.push({
+          name: 'resend.api',
+          ok: true,
+          detail: 'cle "sending-only" valide (best practice de securite, ne peut que envoyer)',
+        })
+      } else if (!res.ok) {
+        checks.push({
+          name: 'resend.api',
+          ok: false,
+          detail: `HTTP ${res.status} : ${JSON.stringify(body)}`,
+        })
       } else {
         const domains = body.data ?? []
         const verifiedDomains = domains.filter((d: any) => d.status === 'verified').map((d: any) => d.name)
