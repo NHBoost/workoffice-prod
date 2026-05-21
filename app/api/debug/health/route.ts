@@ -126,18 +126,23 @@ export async function GET(_request: NextRequest) {
     checks.push({ name: 'resend.api', ok: false, detail: e.message })
   }
 
-  // === 6. Templates HTML ===
+  // === 6. Templates HTML (importes en dur) ===
   try {
-    const fs = await import('node:fs')
-    const path = await import('node:path')
-    const templatesDir = path.join(process.cwd(), 'contract-templates')
-    const files = ['contrat.html', 'cgv.html', 'rgpd.html']
-    const sizes = files.map(f => {
-      const p = path.join(templatesDir, f)
-      const stat = fs.statSync(p)
-      return `${f}=${stat.size}b`
+    const { CONTRAT_HTML, CGV_HTML, RGPD_HTML } = await import('@/lib/contract-templates-data')
+    const sizes = [
+      `contrat=${CONTRAT_HTML.length}c`,
+      `cgv=${CGV_HTML.length}c`,
+      `rgpd=${RGPD_HTML.length}c`,
+    ]
+    const totalVars =
+      (CONTRAT_HTML.match(/\{\{[^}]+\}\}/g)?.length ?? 0) +
+      (CGV_HTML.match(/\{\{[^}]+\}\}/g)?.length ?? 0) +
+      (RGPD_HTML.match(/\{\{[^}]+\}\}/g)?.length ?? 0)
+    checks.push({
+      name: 'templates.html',
+      ok: CONTRAT_HTML.length > 1000 && CGV_HTML.length > 1000,
+      detail: `${sizes.join(', ')} · ${totalVars} placeholders {{...}} a remplir`,
     })
-    checks.push({ name: 'templates.html', ok: true, detail: sizes.join(', ') })
   } catch (e: any) {
     checks.push({ name: 'templates.html', ok: false, detail: e.message })
   }

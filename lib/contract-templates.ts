@@ -1,5 +1,4 @@
-import fs from 'node:fs'
-import path from 'node:path'
+import { CONTRAT_HTML, CGV_HTML, RGPD_HTML } from './contract-templates-data'
 
 /**
  * Helpers pour charger et remplir les templates HTML de contrat.
@@ -52,11 +51,17 @@ export interface ContractVariables {
   }
 }
 
-const TEMPLATES_DIR = path.join(process.cwd(), 'contract-templates')
+// Les 3 templates HTML sont inlinés à la compilation (cf. contract-templates-data.ts
+// auto-genere depuis les .html). Approche plus fiable que de lire les fichiers
+// au runtime depuis Vercel serverless ou outputFileTracingIncludes parfois capricieux.
+const TEMPLATES: Record<'contrat' | 'cgv' | 'rgpd', string> = {
+  contrat: CONTRAT_HTML,
+  cgv: CGV_HTML,
+  rgpd: RGPD_HTML,
+}
 
 function loadTemplate(name: 'contrat' | 'cgv' | 'rgpd'): string {
-  const file = path.join(TEMPLATES_DIR, `${name}.html`)
-  return fs.readFileSync(file, 'utf8')
+  return TEMPLATES[name]
 }
 
 /**
