@@ -17,7 +17,9 @@ import { prisma } from '@/lib/prisma'
  *  6. Templates contrat HTML : presents et bien parseables
  */
 export async function GET(_request: NextRequest) {
-  const { error } = await requireRole('ADMIN')
+  // Endpoint diagnostic : ouvert ADMIN + MANAGER (pas de valeurs secretes exposees,
+  // seulement des metadonnees de configuration)
+  const { error } = await requireRole('ADMIN', 'MANAGER')
   if (error) return error
 
   const checks: Array<{ name: string; ok: boolean; detail?: string }> = []
