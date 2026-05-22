@@ -313,7 +313,9 @@ model MailNotification {
 model Invoice {
   id             String        @id @default(cuid())
   number         String        @unique
-  enterpriseId   String
+  // Une facture peut etre attribuee soit a une Enterprise (legacy)
+  // soit a un Client (portail), soit aux deux. Au moins l'un des deux requis.
+  enterpriseId   String?
   subscriptionId String?
   // Attribution directe a un Client (portail) : permet d'afficher cote portail
   clientId       String?
@@ -329,7 +331,7 @@ model Invoice {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  enterprise   Enterprise   @relation(fields: [enterpriseId], references: [id])
+  enterprise   Enterprise?  @relation(fields: [enterpriseId], references: [id])
   subscription Subscription? @relation(fields: [subscriptionId], references: [id])
   client       Client?       @relation(fields: [clientId], references: [id], onDelete: SetNull)
 

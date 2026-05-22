@@ -236,7 +236,7 @@ export async function GET() {
         type: 'invoice' as const,
         id: i.id,
         title: `Facture ${i.number}`,
-        description: `${i.totalAmount.toFixed(2)} € — ${i.enterprise.name}`,
+        description: `${i.totalAmount.toFixed(2)} € — ${i.enterprise?.name ?? 'Client direct'}`,
         date: i.createdAt,
         href: `/dashboard/facturation/${i.id}`,
         status: i.status,
@@ -383,7 +383,7 @@ export async function GET() {
         overdueInvoices: overdueInvoicesList.map(i => ({
           id: i.id,
           number: i.number,
-          enterpriseName: i.enterprise.name,
+          enterpriseName: i.enterprise?.name ?? '—',
           totalAmount: i.totalAmount,
           dueDate: i.dueDate,
           daysOverdue: Math.floor((today.getTime() - new Date(i.dueDate).getTime()) / 86400000),

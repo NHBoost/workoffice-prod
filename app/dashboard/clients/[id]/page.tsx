@@ -7,12 +7,16 @@ import {
   ArrowLeft, Edit, Trash2, Building2, User, MapPin, FileText,
   Download, UserPlus, Upload, Eye, EyeOff, AlertTriangle,
   Mail, Phone, Calendar, CreditCard, Shield, CheckCircle2,
-  Clock, Loader2, ExternalLink,
+  Clock, Loader2, ExternalLink, Inbox, Receipt,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { Card, Badge, Spinner, EmptyState, ConfirmDialog } from '@/components/ui'
 import { cn, formatCurrency } from '@/lib/utils'
 import { FORMULE_LABELS, PERIODICITE_LABELS, type Formule, type Periodicite } from '@/lib/client-schemas'
+import { CourriersTab } from './_components/CourriersTab'
+import { FacturesTab } from './_components/FacturesTab'
+
+type TabKey = 'details' | 'courriers' | 'factures'
 
 interface ClientDetail {
   id: string
@@ -98,6 +102,7 @@ function Row({ label, value, mono = false }: { label: string; value: React.React
 export default function ClientDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter()
   const [client, setClient] = useState<ClientDetail | null>(null)
+  const [activeTab, setActiveTab] = useState<TabKey>('details')
   const [loading, setLoading] = useState(true)
   const [reveal, setReveal] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -246,6 +251,40 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
         </div>
       </div>
 
+      {/* === Tabs admin === */}
+      <div className="border-b border-border flex gap-1">
+        {([
+          { key: 'details', label: 'Détails', icon: User },
+          { key: 'courriers', label: 'Courriers', icon: Inbox },
+          { key: 'factures', label: 'Facturation', icon: Receipt },
+        ] as const).map(t => {
+          const Icon = t.icon
+          const active = activeTab === t.key
+          return (
+            <button
+              key={t.key}
+              onClick={() => setActiveTab(t.key)}
+              className={cn(
+                'inline-flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors',
+                active
+                  ? 'border-gold-500 text-gold-700 dark:text-gold-400'
+                  : 'border-transparent text-text-muted hover:text-text hover:border-border'
+              )}
+            >
+              <Icon className="h-4 w-4" />
+              {t.label}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* === Onglets contenus === */}
+      {activeTab === 'courriers' && <CourriersTab clientId={client.id} />}
+      {activeTab === 'factures' && <FacturesTab clientId={client.id} />}
+
+      {/* === Onglet Details : actions + sections existantes === */}
+      {activeTab === 'details' && (
+        <>
       {/* === Actions cockpit === */}
       <Card className="p-4">
         <div className="flex flex-wrap gap-2">
@@ -443,6 +482,8 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
           </Card>
         </div>
       </div>
+        </>
+      )}
 
       {/* === Confirm delete dialog === */}
       <ConfirmDialog
