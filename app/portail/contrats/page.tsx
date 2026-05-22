@@ -20,8 +20,10 @@ interface ContractRow {
 const fr = (d: string | null) => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 
 export default function PortailContratsPage() {
+  // Cache court (30s) car les statuts changent en quasi temps reel
+  // (admin peut televerser un signe a tout moment).
   const cacheKey = 'portail-contracts'
-  const cached = typeof window !== 'undefined' ? getCachedData<ContractRow[]>(cacheKey, 3 * 60_000) : null
+  const cached = typeof window !== 'undefined' ? getCachedData<ContractRow[]>(cacheKey, 30_000) : null
   const [contracts, setContracts] = useState<ContractRow[]>(cached ?? [])
   const [loading, setLoading] = useState(!cached)
 
@@ -42,6 +44,14 @@ export default function PortailContratsPage() {
   }, [])
 
   useEffect(() => { fetchContracts() }, [fetchContracts])
+
+  // Refresh automatique quand l'onglet redevient actif (par exemple apres
+  // que l'admin ait televerse un contrat signe dans un autre onglet).
+  useEffect(() => {
+    const onFocus = () => fetchContracts()
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [fetchContracts])
 
   return (
     <div className="space-y-6">

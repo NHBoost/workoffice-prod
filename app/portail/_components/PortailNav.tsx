@@ -7,6 +7,26 @@ import { Mail, FileText, Receipt, LogOut } from 'lucide-react'
 import { Logo } from '@/components/Logo'
 import { cn, getInitials } from '@/lib/utils'
 
+/**
+ * Logout strict : signOut next-auth + nettoyage localStorage cache
+ * + hard reload vers /auth/login pour purger tout state React/SWR.
+ */
+async function strictSignOut() {
+  // Vide tout le cache localStorage prefixe dashboard-cache:
+  try {
+    if (typeof window !== 'undefined') {
+      Object.keys(localStorage).forEach(k => {
+        if (k.startsWith('dashboard-cache:')) localStorage.removeItem(k)
+      })
+    }
+  } catch {}
+  await signOut({ redirect: false })
+  // Force reload complet (purge state React, cache memoire, etc.)
+  if (typeof window !== 'undefined') {
+    window.location.href = '/auth/login'
+  }
+}
+
 const TABS = [
   { href: '/portail',              label: 'Courrier',    icon: Mail },
   { href: '/portail/contrats',     label: 'Contrats',    icon: FileText },
@@ -31,7 +51,7 @@ export function PortailNav({ userName }: { userName: string }) {
             <span className="text-sm text-text-muted">{userName}</span>
           </div>
           <button
-            onClick={() => signOut({ callbackUrl: '/auth/login' })}
+            onClick={() => strictSignOut()}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md text-text-muted hover:text-danger hover:bg-danger-soft transition-colors"
             title="Se déconnecter"
           >

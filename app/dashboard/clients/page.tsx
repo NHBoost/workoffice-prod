@@ -37,14 +37,32 @@ interface ClientRow {
 
 // ============ Status badges ============
 
+// Formatage relatif "il y a Xmin/Xh/Xj" pour la derniere connexion
+function relativeTime(iso: string | null): string {
+  if (!iso) return ''
+  const diff = Date.now() - new Date(iso).getTime()
+  const min = Math.floor(diff / 60000)
+  if (min < 1) return "à l'instant"
+  if (min < 60) return `il y a ${min} min`
+  const h = Math.floor(min / 60)
+  if (h < 24) return `il y a ${h} h`
+  const days = Math.floor(h / 24)
+  if (days === 1) return 'hier'
+  return `il y a ${days} j`
+}
+
 function CompteBadge({ status, lastLogin }: { status: ClientRow['compteStatut']; lastLogin: string | null }) {
   if (status === 'NON_CREE') return <Badge tone="neutral" size="sm">Non créé</Badge>
-  if (status === 'CREE' && !lastLogin) return <Badge tone="info" size="sm">Créé (jamais connecté)</Badge>
+  if (status === 'CREE' && !lastLogin) return <Badge tone="info" size="sm">Créé · jamais connecté</Badge>
+  // CONNECTE = compte activé. On indique la dernière connexion en sous-texte.
   return (
-    <Badge tone="success" size="sm" className="inline-flex items-center gap-1">
-      <CheckCircle2 className="h-3 w-3" />
-      Connecté
-    </Badge>
+    <div className="inline-flex flex-col items-center gap-0.5">
+      <Badge tone="success" size="sm" className="inline-flex items-center gap-1">
+        <CheckCircle2 className="h-3 w-3" />
+        Activé
+      </Badge>
+      {lastLogin && <span className="text-2xs text-text-subtle">{relativeTime(lastLogin)}</span>}
+    </div>
   )
 }
 

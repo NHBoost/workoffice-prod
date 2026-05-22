@@ -101,15 +101,23 @@ export async function POST(
 
     if (contentType.includes('multipart/form-data')) {
       const formData = await request.formData()
+      // IMPORTANT : formData.get() renvoie null si absent, mais Zod
+      // .optional() n'accepte que undefined. On filtre les null/empty.
+      const v = (k: string): any => {
+        const raw = formData.get(k)
+        if (raw === null) return undefined
+        if (typeof raw === 'string' && raw.trim() === '') return undefined
+        return raw
+      }
       rawData = {
-        number: formData.get('number'),
-        amount: formData.get('amount'),
-        taxAmount: formData.get('taxAmount'),
-        totalAmount: formData.get('totalAmount'),
-        tvaTaux: formData.get('tvaTaux'),
-        dueDate: formData.get('dueDate'),
-        status: formData.get('status') || 'PENDING',
-        notes: formData.get('notes'),
+        number: v('number'),
+        amount: v('amount'),
+        taxAmount: v('taxAmount'),
+        totalAmount: v('totalAmount'),
+        tvaTaux: v('tvaTaux') ?? 21,
+        dueDate: v('dueDate'),
+        status: v('status') ?? 'PENDING',
+        notes: v('notes'),
       }
       const f = formData.get('pdf')
       if (f instanceof File && f.size > 0) file = f

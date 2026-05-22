@@ -85,9 +85,12 @@ export async function POST(
     }
 
     const formData = await request.formData()
-    const sender = (formData.get('sender') as string)?.trim() || null
-    const type = ((formData.get('type') as string) || 'STANDARD').toUpperCase()
-    const notes = (formData.get('notes') as string)?.trim() || null
+    const senderRaw = formData.get('sender')
+    const typeRaw = formData.get('type')
+    const notesRaw = formData.get('notes')
+    const sender = typeof senderRaw === 'string' && senderRaw.trim() ? senderRaw.trim() : null
+    const type = typeof typeRaw === 'string' && typeRaw.trim() ? typeRaw.trim().toUpperCase() : 'STANDARD'
+    const notes = typeof notesRaw === 'string' && notesRaw.trim() ? notesRaw.trim() : null
     const file = formData.get('pdf')
 
     if (!VALID_TYPES.includes(type as any)) {
