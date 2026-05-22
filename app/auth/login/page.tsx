@@ -54,9 +54,37 @@ export default function LoginPage() {
     }
   }
 
-  const fillDemo = (mail: string, pwd: string) => {
+  /**
+   * Remplit + soumet directement le formulaire avec un compte demo.
+   * Evite le double-clic (1 clic = login direct).
+   */
+  const loginAs = async (mail: string, pwd: string) => {
     setEmail(mail)
     setPassword(pwd)
+    setIsLoading(true)
+    setError(null)
+    try {
+      const result = await signIn('credentials', { email: mail, password: pwd, redirect: false })
+      if (result?.error) {
+        setError('Compte demo introuvable. Vérifie qu\'il existe en BDD.')
+      } else {
+        toast.success('Connexion réussie')
+        try {
+          const sessionRes = await fetch('/api/auth/session')
+          const session = await sessionRes.json()
+          const role = session?.user?.role
+          router.push(role === 'USER' ? '/portail' : '/dashboard')
+          router.refresh()
+        } catch {
+          router.push('/dashboard')
+          router.refresh()
+        }
+      }
+    } catch {
+      setError('Erreur réseau')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -281,7 +309,7 @@ export default function LoginPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => fillDemo('admin@workoffice.be', 'admin123')}
+                onClick={() => loginAs('admin@workoffice.be', 'admin123')}
                 className="text-left p-3 rounded-lg border border-border bg-surface hover:bg-surface-2 hover:border-border-strong transition-all"
               >
                 <div className="flex items-center gap-2 mb-1">
@@ -292,7 +320,7 @@ export default function LoginPage() {
               </button>
               <button
                 type="button"
-                onClick={() => fillDemo('manager@workoffice.be', 'manager123')}
+                onClick={() => loginAs('manager@workoffice.be', 'manager123')}
                 className="text-left p-3 rounded-lg border border-border bg-surface hover:bg-surface-2 hover:border-border-strong transition-all"
               >
                 <div className="flex items-center gap-2 mb-1">
