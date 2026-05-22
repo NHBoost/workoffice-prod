@@ -4,6 +4,7 @@ import { requireRole } from '@/lib/api-auth'
 import { checkRateLimit } from '@/lib/api-rate-limit'
 import { audit } from '@/lib/audit'
 import { uploadPdf, signedUrl as makeSignedUrl } from '@/lib/storage'
+import { sendEmail, newMailEmail } from '@/lib/email'
 
 export const maxDuration = 30
 
@@ -72,7 +73,7 @@ export async function POST(
   try {
     const client = await prisma.client.findUnique({
       where: { id: params.id },
-      select: { id: true, centerId: true, nom: true, prenom: true, societeDenomination: true },
+      select: { id: true, centerId: true, nom: true, prenom: true, societeDenomination: true, emailPerso: true },
     })
     if (!client) return NextResponse.json({ error: 'Client introuvable' }, { status: 404 })
 
@@ -88,9 +89,12 @@ export async function POST(
     const senderRaw = formData.get('sender')
     const typeRaw = formData.get('type')
     const notesRaw = formData.get('notes')
+    const notifyClientRaw = formData.get('notifyClient')
     const sender = typeof senderRaw === 'string' && senderRaw.trim() ? senderRaw.trim() : null
     const type = typeof typeRaw === 'string' && typeRaw.trim() ? typeRaw.trim().toUpperCase() : 'STANDARD'
     const notes = typeof notesRaw === 'string' && notesRaw.trim() ? notesRaw.trim() : null
+    // Notify par defaut, sauf si l'admin a explicitement decoche
+    const notifyClient = notifyClientRaw !== 'false' && notifyClientRaw !== '0'
     const file = formData.get('pdf')
 
     if (!VALID_TYPES.includes(type as any)) {
@@ -135,15 +139,48 @@ export async function POST(
       }
     }
 
+    // === Notification email au client ===
+    // Best-effort : si l'envoi echoue, on continue (le courrier est cree).
+    // L'admin verra emailSent: false dans la reponse et pourra agir.
+    let emailSent = false
+    let emailError: string | null = null
+    if (notifyClient) {
+      try {
+        const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
+        const tpl = newMailEmail({
+          prenom: client.prenom,
+          type,
+          sender,
+          portalUrl: `${baseUrl}/portail`,
+        })
+        const result = await sendEmail({
+          to: client.emailPerso,
+          subject: tpl.subject,
+          html: tpl.html,
+          text: tpl.text,
+        })
+        emailSent = result.ok && result.id !== 'dev-mode'
+        emailError = result.error ?? null
+      } catch (e: any) {
+        emailError = e?.message ?? 'send failed'
+      }
+    }
+
     await audit('campaign.create', {
       actor: { id: session!.user.id, email: session!.user.email, role: session!.user.role },
       resourceType: 'Mail',
       resourceId: mail.id,
-      metadata: { clientId: client.id, type, hasPdf: !!pdfPath, sender },
+      metadata: { clientId: client.id, type, hasPdf: !!pdfPath, sender, notifyClient, emailSent },
       request,
     })
 
-    return NextResponse.json({ ok: true, mail: { ...mail, pdfPath } }, { status: 201 })
+    return NextResponse.json({
+      ok: true,
+      mail: { ...mail, pdfPath },
+      emailSent,
+      emailError,
+      notified: notifyClient,
+    }, { status: 201 })
   } catch (err: any) {
     console.error('[api/clients/[id]/courriers POST]', err)
     return NextResponse.json({ error: err.message || 'Failed' }, { status: 500 })

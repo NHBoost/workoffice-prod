@@ -49,6 +49,7 @@ export function CourriersTab({ clientId }: { clientId: string }) {
   const [type, setType] = useState('STANDARD')
   const [notes, setNotes] = useState('')
   const [pdfFile, setPdfFile] = useState<File | null>(null)
+  const [notifyClient, setNotifyClient] = useState(true) // notify par defaut
 
   const fetchMails = useCallback(async () => {
     setLoading(true)
@@ -72,6 +73,7 @@ export function CourriersTab({ clientId }: { clientId: string }) {
     setType('STANDARD')
     setNotes('')
     setPdfFile(null)
+    setNotifyClient(true)
   }
 
   const handleSubmit = async (e: FormEvent) => {
@@ -83,6 +85,7 @@ export function CourriersTab({ clientId }: { clientId: string }) {
       fd.append('type', type)
       if (notes) fd.append('notes', notes)
       if (pdfFile) fd.append('pdf', pdfFile)
+      fd.append('notifyClient', notifyClient ? 'true' : 'false')
 
       const res = await fetch(`/api/clients/${clientId}/courriers`, { method: 'POST', body: fd })
       const body = await res.json().catch(() => ({}))
@@ -90,7 +93,14 @@ export function CourriersTab({ clientId }: { clientId: string }) {
         toast.error(body.error || 'Erreur')
         return
       }
-      toast.success('Courrier attribué au client')
+      // Message contextuel selon le succes de la notif email
+      if (!notifyClient) {
+        toast.success('Courrier attribué (client non notifié)')
+      } else if (body.emailSent) {
+        toast.success('Courrier attribué et email envoyé au client ✓')
+      } else {
+        toast.success('Courrier attribué. L\'email n\'a pas pu être envoyé.', { duration: 6000 })
+      }
       resetForm()
       setOpen(false)
       fetchMails()
@@ -240,6 +250,25 @@ export function CourriersTab({ clientId }: { clientId: string }) {
               className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-surface text-text outline-none focus:ring-2 focus:ring-gold-400/40 resize-none"
             />
           </div>
+
+          {/* Notification client */}
+          <label className="flex items-start gap-2.5 p-3 rounded-lg bg-gold-50/40 dark:bg-gold-900/10 border border-gold-200/60 dark:border-gold-800/40 cursor-pointer hover:bg-gold-50/70 transition-colors">
+            <input
+              type="checkbox"
+              checked={notifyClient}
+              onChange={e => setNotifyClient(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-border text-gold-600 focus:ring-gold-400/40"
+            />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-text">Notifier le client par email</p>
+              <p className="text-2xs text-text-muted mt-0.5">
+                Un email sera envoyé au client pour l'informer du nouveau courrier
+                {(type === 'RECOMMANDE' || type === 'OFFICIEL') && (
+                  <span className="text-warning font-medium"> · marqué comme prioritaire</span>
+                )}
+              </p>
+            </div>
+          </label>
 
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={() => setOpen(false)} className="btn btn-ghost">

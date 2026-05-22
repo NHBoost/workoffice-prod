@@ -147,6 +147,50 @@ export function setupPasswordEmail(opts: {
   }
 }
 
+/** Email de notification d'un nouveau courrier recu dans le portail. */
+export function newMailEmail(opts: {
+  prenom: string
+  type: string             // STANDARD / RECOMMANDE / COLIS / OFFICIEL
+  sender?: string | null
+  portalUrl: string
+}): { subject: string; html: string; text: string } {
+  const TYPE_LABELS: Record<string, string> = {
+    STANDARD: 'Courrier standard',
+    RECOMMANDE: 'Courrier recommandé',
+    COLIS: 'Colis',
+    OFFICIEL: 'Courrier officiel',
+  }
+  const typeLabel = TYPE_LABELS[opts.type] ?? 'Courrier'
+  const isUrgent = opts.type === 'RECOMMANDE' || opts.type === 'OFFICIEL'
+
+  return {
+    subject: isUrgent
+      ? `🔔 [${typeLabel}] Un courrier important vous attend`
+      : `Nouveau courrier dans votre espace Prestigia`,
+    html: `
+      <!doctype html><html><head><meta charset="utf-8"><style>${baseStyles}</style></head><body>
+        <div class="card">
+          <div class="brand">Prestigia</div>
+          <div class="brand-sub">Business Center</div>
+          <h1>Bonjour ${opts.prenom},</h1>
+          <p>Un nouveau <strong>${typeLabel.toLowerCase()}</strong> vient d'être enregistré
+          dans votre espace client Prestigia${opts.sender ? `, de la part de <strong>${opts.sender}</strong>` : ''}.</p>
+          ${isUrgent ? `<p style="background:#fef3c7;border-left:3px solid #C9A227;padding:10px 14px;border-radius:6px;color:#92400e;">
+            ⚠️ Ce courrier nécessite votre attention. Pensez à le consulter rapidement.
+          </p>` : ''}
+          <p style="text-align:center;"><a href="${opts.portalUrl}" class="btn">Consulter mon courrier</a></p>
+          <p>Vous pouvez télécharger le scan PDF et marquer le courrier comme lu depuis votre espace.</p>
+          <div class="footer">
+            <p>SRL Prestigia · Lozenberg 21, 1932 Zaventem · BCE 1031.227.487<br>
+            Vous recevez cet email car un courrier vous a été attribué dans votre espace client.</p>
+          </div>
+        </div>
+      </body></html>
+    `,
+    text: `Bonjour ${opts.prenom},\n\nUn nouveau ${typeLabel.toLowerCase()} vient d'être enregistré dans votre espace Prestigia${opts.sender ? ` de la part de ${opts.sender}` : ''}.\n\n${isUrgent ? '⚠️ Ce courrier nécessite votre attention.\n\n' : ''}Consultez-le : ${opts.portalUrl}\n\nSRL Prestigia`,
+  }
+}
+
 /** Email d'envoi du contrat avec PDF en piece jointe. */
 export function contractEmail(opts: {
   prenom: string
