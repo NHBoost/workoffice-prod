@@ -47,6 +47,7 @@ export function FacturesTab({ clientId }: { clientId: string }) {
   const [tvaTaux, setTvaTaux] = useState('21')
   const [dueDate, setDueDate] = useState('')
   const [pdfFile, setPdfFile] = useState<File | null>(null)
+  const [notifyClient, setNotifyClient] = useState(true)
 
   const fetchInvoices = useCallback(async () => {
     setLoading(true)
@@ -66,7 +67,7 @@ export function FacturesTab({ clientId }: { clientId: string }) {
   useEffect(() => { fetchInvoices() }, [fetchInvoices])
 
   const resetForm = () => {
-    setNumber(''); setAmount(''); setTvaTaux('21'); setDueDate(''); setPdfFile(null)
+    setNumber(''); setAmount(''); setTvaTaux('21'); setDueDate(''); setPdfFile(null); setNotifyClient(true)
   }
 
   // Suggestion numero auto : FA-{YYYY}-{compteur}
@@ -89,6 +90,7 @@ export function FacturesTab({ clientId }: { clientId: string }) {
       fd.append('tvaTaux', tvaTaux)
       fd.append('dueDate', dueDate)
       if (pdfFile) fd.append('pdf', pdfFile)
+      fd.append('notifyClient', notifyClient ? 'true' : 'false')
 
       const res = await fetch(`/api/clients/${clientId}/factures`, { method: 'POST', body: fd })
       const body = await res.json().catch(() => ({}))
@@ -96,7 +98,13 @@ export function FacturesTab({ clientId }: { clientId: string }) {
         toast.error(body.error || 'Erreur')
         return
       }
-      toast.success('Facture créée')
+      if (!notifyClient) {
+        toast.success('Facture créée (client non notifié)')
+      } else if (body.emailSent) {
+        toast.success('Facture créée et email envoyé au client ✓')
+      } else {
+        toast.success('Facture créée. L\'email n\'a pas pu être envoyé.', { duration: 6000 })
+      }
       resetForm()
       setOpen(false)
       fetchInvoices()
@@ -112,14 +120,20 @@ export function FacturesTab({ clientId }: { clientId: string }) {
       const res = await fetch(`/api/clients/${clientId}/factures/${i.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ status: newStatus, notifyClient: true }),
       })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) {
         toast.error(body.error || 'Erreur')
         return
       }
-      toast.success(newStatus === 'PAID' ? 'Facture marquée payée' : 'Facture marquée impayée')
+      if (newStatus === 'PAID') {
+        toast.success(body.emailSent
+          ? 'Facture marquée payée — email de confirmation envoyé ✓'
+          : 'Facture marquée payée')
+      } else {
+        toast.success('Facture marquée impayée')
+      }
       fetchInvoices()
     } finally {
       setActingId(null)
@@ -310,6 +324,22 @@ export function FacturesTab({ clientId }: { clientId: string }) {
               <p className="text-2xs text-text-muted mt-1">{pdfFile.name} · {(pdfFile.size / 1024).toFixed(0)} ko</p>
             )}
           </div>
+
+          {/* Notification client */}
+          <label className="flex items-start gap-2.5 p-3 rounded-lg bg-gold-50/40 dark:bg-gold-900/10 border border-gold-200/60 dark:border-gold-800/40 cursor-pointer hover:bg-gold-50/70 transition-colors">
+            <input
+              type="checkbox"
+              checked={notifyClient}
+              onChange={e => setNotifyClient(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-border text-gold-600 focus:ring-gold-400/40"
+            />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-text">Notifier le client par email</p>
+              <p className="text-2xs text-text-muted mt-0.5">
+                Le client recevra un email avec les détails de la facture et le lien vers son espace.
+              </p>
+            </div>
+          </label>
 
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={() => setOpen(false)} className="btn btn-ghost">Annuler</button>

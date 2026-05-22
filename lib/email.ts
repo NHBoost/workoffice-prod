@@ -191,6 +191,74 @@ export function newMailEmail(opts: {
   }
 }
 
+/** Email a la creation d'une nouvelle facture. */
+export function newInvoiceEmail(opts: {
+  prenom: string
+  number: string
+  totalAmount: number
+  dueDate: Date | string
+  portalUrl: string
+  hasPdf: boolean
+}): { subject: string; html: string; text: string } {
+  const due = new Date(opts.dueDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
+  const amount = new Intl.NumberFormat('fr-BE', { style: 'currency', currency: 'EUR' }).format(opts.totalAmount)
+  return {
+    subject: `Nouvelle facture ${opts.number} — ${amount}`,
+    html: `
+      <!doctype html><html><head><meta charset="utf-8"><style>${baseStyles}</style></head><body>
+        <div class="card">
+          <div class="brand">Prestigia</div>
+          <div class="brand-sub">Business Center</div>
+          <h1>Bonjour ${opts.prenom},</h1>
+          <p>Votre nouvelle facture <strong>${opts.number}</strong> est désormais disponible dans votre espace client.</p>
+          <div style="background:#fafafa;border:1px solid #e5e5e5;border-radius:10px;padding:16px;margin:16px 0;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:#666;">Montant TTC</span><strong>${amount}</strong></div>
+            <div style="display:flex;justify-content:space-between;"><span style="color:#666;">Échéance</span><strong>${due}</strong></div>
+          </div>
+          <p style="text-align:center;"><a href="${opts.portalUrl}" class="btn">Consulter ma facture</a></p>
+          ${opts.hasPdf ? '<p>Le PDF est téléchargeable directement depuis votre espace.</p>' : ''}
+          <p style="font-size:13px;color:#666;">Le règlement s'effectue par virement bancaire selon les coordonnées indiquées sur le document.</p>
+          <div class="footer">
+            <p>SRL Prestigia · Lozenberg 21, 1932 Zaventem · BCE 1031.227.487</p>
+          </div>
+        </div>
+      </body></html>
+    `,
+    text: `Bonjour ${opts.prenom},\n\nVotre nouvelle facture ${opts.number} (${amount}, échéance ${due}) est disponible dans votre espace client.\n\nConsultez-la : ${opts.portalUrl}\n\nSRL Prestigia`,
+  }
+}
+
+/** Email de confirmation de paiement d'une facture. */
+export function invoicePaidEmail(opts: {
+  prenom: string
+  number: string
+  totalAmount: number
+  portalUrl: string
+}): { subject: string; html: string; text: string } {
+  const amount = new Intl.NumberFormat('fr-BE', { style: 'currency', currency: 'EUR' }).format(opts.totalAmount)
+  return {
+    subject: `✓ Paiement reçu — Facture ${opts.number}`,
+    html: `
+      <!doctype html><html><head><meta charset="utf-8"><style>${baseStyles}</style></head><body>
+        <div class="card">
+          <div class="brand">Prestigia</div>
+          <div class="brand-sub">Business Center</div>
+          <h1>Merci ${opts.prenom} 🎉</h1>
+          <p>Nous avons bien réceptionné le paiement de votre facture <strong>${opts.number}</strong> d'un montant de <strong>${amount}</strong>.</p>
+          <p style="background:#d1fae5;border-left:3px solid #10b981;padding:10px 14px;border-radius:6px;color:#065f46;">
+            ✓ Votre facture est marquée comme payée dans votre espace client.
+          </p>
+          <p style="text-align:center;"><a href="${opts.portalUrl}" class="btn">Voir mon espace client</a></p>
+          <div class="footer">
+            <p>SRL Prestigia · Lozenberg 21, 1932 Zaventem · BCE 1031.227.487</p>
+          </div>
+        </div>
+      </body></html>
+    `,
+    text: `Merci ${opts.prenom},\n\nNous avons bien reçu le paiement de votre facture ${opts.number} (${amount}). Elle est désormais marquée comme payée.\n\nVotre espace : ${opts.portalUrl}\n\nSRL Prestigia`,
+  }
+}
+
 /** Email d'envoi du contrat avec PDF en piece jointe. */
 export function contractEmail(opts: {
   prenom: string

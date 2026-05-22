@@ -4,6 +4,7 @@ import { requireRole } from '@/lib/api-auth'
 import { checkRateLimit } from '@/lib/api-rate-limit'
 import { audit } from '@/lib/audit'
 import { uploadPdf, signedUrl as makeSignedUrl } from '@/lib/storage'
+import { sendEmail, newInvoiceEmail } from '@/lib/email'
 import { z } from 'zod'
 
 export const maxDuration = 30
@@ -82,7 +83,7 @@ export async function POST(
   try {
     const client = await prisma.client.findUnique({
       where: { id: params.id },
-      select: { id: true, centerId: true, societeDenomination: true },
+      select: { id: true, centerId: true, societeDenomination: true, prenom: true, emailPerso: true },
     })
     if (!client) return NextResponse.json({ error: 'Client introuvable' }, { status: 404 })
 
@@ -98,6 +99,7 @@ export async function POST(
     const contentType = request.headers.get('content-type') || ''
     let rawData: any
     let file: File | null = null
+    let notifyClient = true // default ON
 
     if (contentType.includes('multipart/form-data')) {
       const formData = await request.formData()
@@ -121,8 +123,11 @@ export async function POST(
       }
       const f = formData.get('pdf')
       if (f instanceof File && f.size > 0) file = f
+      const notifyRaw = formData.get('notifyClient')
+      notifyClient = notifyRaw !== 'false' && notifyRaw !== '0'
     } else {
       rawData = await request.json()
+      if (rawData?.notifyClient === false) notifyClient = false
     }
 
     const data = createInvoiceSchema.parse(rawData)
@@ -179,15 +184,48 @@ export async function POST(
       }
     }
 
+    // === Email au client ===
+    let emailSent = false
+    let emailError: string | null = null
+    if (notifyClient) {
+      try {
+        const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
+        const tpl = newInvoiceEmail({
+          prenom: client.prenom,
+          number: invoice.number,
+          totalAmount,
+          dueDate: data.dueDate,
+          portalUrl: `${baseUrl}/portail/facturation`,
+          hasPdf: !!pdfPath,
+        })
+        const result = await sendEmail({
+          to: client.emailPerso,
+          subject: tpl.subject,
+          html: tpl.html,
+          text: tpl.text,
+        })
+        emailSent = result.ok && result.id !== 'dev-mode'
+        emailError = result.error ?? null
+      } catch (e: any) {
+        emailError = e?.message ?? 'send failed'
+      }
+    }
+
     await audit('invoice.create', {
       actor: { id: session!.user.id, email: session!.user.email, role: session!.user.role },
       resourceType: 'Invoice',
       resourceId: invoice.id,
-      metadata: { clientId: client.id, number: invoice.number, totalAmount, hasPdf: !!pdfPath },
+      metadata: { clientId: client.id, number: invoice.number, totalAmount, hasPdf: !!pdfPath, notifyClient, emailSent },
       request,
     })
 
-    return NextResponse.json({ ok: true, invoice: { ...invoice, pdfPath } }, { status: 201 })
+    return NextResponse.json({
+      ok: true,
+      invoice: { ...invoice, pdfPath },
+      emailSent,
+      emailError,
+      notified: notifyClient,
+    }, { status: 201 })
   } catch (err: any) {
     if (err instanceof z.ZodError) {
       return NextResponse.json({ error: 'Validation failed', details: err.errors }, { status: 400 })
