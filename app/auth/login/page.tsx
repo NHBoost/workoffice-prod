@@ -33,8 +33,19 @@ export default function LoginPage() {
         setError('Email ou mot de passe incorrect')
       } else {
         toast.success('Connexion réussie')
-        router.push('/dashboard')
-        router.refresh()
+        // Determine la route de redirection selon le role
+        // (recup la session juste apres signIn)
+        try {
+          const sessionRes = await fetch('/api/auth/session')
+          const session = await sessionRes.json()
+          const role = session?.user?.role
+          // USER → portail client ; ADMIN / MANAGER → dashboard admin
+          router.push(role === 'USER' ? '/portail' : '/dashboard')
+          router.refresh()
+        } catch {
+          router.push('/dashboard')
+          router.refresh()
+        }
       }
     } catch {
       setError('Une erreur est survenue. Réessayez.')

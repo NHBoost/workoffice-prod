@@ -268,20 +268,30 @@ model Mail {
   recipient    String
   sender       String?
   enterpriseId String?
+  // Attribution directe a un Client (portail) : prioritaire sur enterpriseId
+  clientId     String?
   centerId     String
   status       String @default("RECEIVED")
+  // Type de courrier (utile pour le filtrage cote portail)
+  type         String     @default("STANDARD") // STANDARD / RECOMMANDE / COLIS / OFFICIEL
   receivedAt   DateTime   @default(now())
   collectedAt  DateTime?
+  // PDF scanne du courrier (chemin Supabase Storage)
+  pdfPath      String?
+  // Quand le client a marque le courrier comme lu (portail)
+  readAt       DateTime?
   notes        String?
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
   enterprise    Enterprise?        @relation(fields: [enterpriseId], references: [id])
+  client        Client?            @relation(fields: [clientId], references: [id], onDelete: SetNull)
   center        Center             @relation(fields: [centerId], references: [id])
   notifications MailNotification[]
 
   @@index([centerId])
   @@index([enterpriseId])
+  @@index([clientId])
   @@index([status])
   @@index([receivedAt])
   @@map("mails")
@@ -305,6 +315,8 @@ model Invoice {
   number         String        @unique
   enterpriseId   String
   subscriptionId String?
+  // Attribution directe a un Client (portail) : permet d'afficher cote portail
+  clientId       String?
   amount         Float
   taxAmount      Float
   totalAmount    Float
@@ -312,13 +324,17 @@ model Invoice {
   status         String @default("PENDING")
   issuedAt       DateTime      @default(now())
   paidAt         DateTime?
+  // PDF de la facture (chemin Supabase Storage)
+  pdfPath        String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
   enterprise   Enterprise   @relation(fields: [enterpriseId], references: [id])
   subscription Subscription? @relation(fields: [subscriptionId], references: [id])
+  client       Client?       @relation(fields: [clientId], references: [id], onDelete: SetNull)
 
   @@index([enterpriseId])
+  @@index([clientId])
   @@index([status])
   @@index([dueDate])
   @@index([paidAt])
@@ -438,6 +454,9 @@ model Client {
   user                 User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   center               Center   @relation(fields: [centerId], references: [id])
   contrats             ContratClient[]
+  // Portail client : courriers et factures directement attribues
+  mails                Mail[]
+  invoices             Invoice[]
 
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
