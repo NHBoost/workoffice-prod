@@ -54,39 +54,6 @@ export default function LoginPage() {
     }
   }
 
-  /**
-   * Remplit + soumet directement le formulaire avec un compte demo.
-   * Evite le double-clic (1 clic = login direct).
-   */
-  const loginAs = async (mail: string, pwd: string) => {
-    setEmail(mail)
-    setPassword(pwd)
-    setIsLoading(true)
-    setError(null)
-    try {
-      const result = await signIn('credentials', { email: mail, password: pwd, redirect: false })
-      if (result?.error) {
-        setError('Compte demo introuvable. Vérifie qu\'il existe en BDD.')
-      } else {
-        toast.success('Connexion réussie')
-        try {
-          const sessionRes = await fetch('/api/auth/session')
-          const session = await sessionRes.json()
-          const role = session?.user?.role
-          router.push(role === 'USER' ? '/portail' : '/dashboard')
-          router.refresh()
-        } catch {
-          router.push('/dashboard')
-          router.refresh()
-        }
-      }
-    } catch {
-      setError('Erreur réseau')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
   return (
     <div className="min-h-screen flex bg-bg">
       {/* ============================================================
@@ -235,7 +202,7 @@ export default function LoginPage() {
             <Field label="Email professionnel" required>
               <Input
                 type="email"
-                placeholder="email@workoffice.be"
+                placeholder="email@prestigiabusinesscenter.com"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 required
@@ -300,37 +267,6 @@ export default function LoginPage() {
               Se connecter
             </Button>
           </form>
-
-          <div className="mt-8 pt-6 border-t border-border">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-medium text-text-muted">Comptes de démonstration</p>
-              <Badge tone="gold" size="sm">Demo</Badge>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => loginAs('admin@workoffice.be', 'admin123')}
-                className="text-left p-3 rounded-lg border border-border bg-surface hover:bg-surface-2 hover:border-border-strong transition-all"
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <Shield className="h-3.5 w-3.5 text-gold-500" strokeWidth={2} />
-                  <span className="text-xs font-medium text-text">Admin</span>
-                </div>
-                <p className="text-2xs text-text-subtle font-mono truncate">admin@workoffice.be</p>
-              </button>
-              <button
-                type="button"
-                onClick={() => loginAs('manager@workoffice.be', 'manager123')}
-                className="text-left p-3 rounded-lg border border-border bg-surface hover:bg-surface-2 hover:border-border-strong transition-all"
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <Users className="h-3.5 w-3.5 text-info" strokeWidth={2} />
-                  <span className="text-xs font-medium text-text">Manager</span>
-                </div>
-                <p className="text-2xs text-text-subtle font-mono truncate">manager@workoffice.be</p>
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     </div>
