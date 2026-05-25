@@ -25,7 +25,7 @@ const serif = Playfair_Display({
 })
 
 export const metadata = {
-  title: 'WorkOffice — Plateforme premium de gestion de coworking',
+  title: 'Prestigia Business Center — Plateforme de gestion',
   description: 'Gérez vos centres, entreprises domiciliées, salles de réunion, courriers et facturation depuis une plateforme SaaS unique.',
 }
 

@@ -63,7 +63,7 @@ export default function LoginPage() {
         {/* Image de fond : bureau coworking moderne */}
         <Image
           src="https://images.unsplash.com/photo-1497366811353-6870744d04b2?auto=format&fit=crop&w=1600&q=80"
-          alt="Espace de coworking moderne WorkOffice"
+          alt="Espace de coworking Prestigia Business Center"
           fill
           priority
           quality={90}

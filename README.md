@@ -1,4 +1,4 @@
-# WorkOffice Clone
+# Prestigia Business Center
 
 Une plateforme complète de gestion d'espaces de coworking construite avec Next.js 14, TypeScript, Prisma et Tailwind CSS.
 
@@ -278,4 +278,4 @@ Pour toute question ou problème, veuillez ouvrir une issue sur GitHub.
 
 ---
 
-**WorkOffice Clone** - Plateforme complète de gestion d'espaces de coworking 🏢
+**Prestigia Business Center** - Plateforme complète de gestion d'espaces de coworking 🏢

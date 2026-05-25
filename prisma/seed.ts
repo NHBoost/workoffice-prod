@@ -279,7 +279,7 @@ async function main() {
   await prisma.settings.create({
     data: {
       key: 'company_name',
-      value: 'WorkOffice',
+      value: 'Prestigia Business Center',
       type: 'string',
     },
   })

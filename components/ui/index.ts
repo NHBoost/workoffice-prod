@@ -1,5 +1,5 @@
 /**
- * Barrel d'exports pour la lib UI premium WorkOffice.
+ * Barrel d'exports pour la lib UI Prestigia Business Center.
  *
  * Usage :
  *   import { Button, Badge, Card, Input, EmptyState } from '@/components/ui'

@@ -35,7 +35,7 @@ interface Settings {
 
 const initialSettings: Settings = {
   company: {
-    name: 'WorkOffice',
+    name: 'Prestigia Business Center',
     address: 'Rue de la Loi 123',
     city: 'Bruxelles',
     postalCode: '1000',
@@ -103,7 +103,7 @@ export default function SettingsPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Paramètres</h1>
-          <p className="text-gray-600">Configurez votre plateforme WorkOffice</p>
+          <p className="text-gray-600">Configurez votre plateforme Prestigia Business Center</p>
         </div>
         <button
           onClick={handleSave}
