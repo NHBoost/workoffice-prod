@@ -3,8 +3,15 @@
 import { useEffect, useState, FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Loader2, Save } from 'lucide-react'
+import { ArrowLeft, Loader2, Save, Paperclip, X } from 'lucide-react'
 import toast from 'react-hot-toast'
+
+const TYPE_OPTIONS = [
+  { value: 'STANDARD', label: 'Standard' },
+  { value: 'RECOMMANDE', label: 'Recommandé' },
+  { value: 'COLIS', label: 'Colis' },
+  { value: 'OFFICIEL', label: 'Officiel' },
+]
 
 export default function NewMailPage() {
   const router = useRouter()
@@ -16,7 +23,9 @@ export default function NewMailPage() {
   const [sender, setSender] = useState('')
   const [centerId, setCenterId] = useState('')
   const [enterpriseId, setEnterpriseId] = useState('')
+  const [type, setType] = useState('STANDARD')
   const [notes, setNotes] = useState('')
+  const [docFile, setDocFile] = useState<File | null>(null)
 
   useEffect(() => {
     Promise.all([
@@ -38,24 +47,24 @@ export default function NewMailPage() {
     e.preventDefault()
     setSubmitting(true)
     try {
-      const res = await fetch('/api/mails', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          recipient,
-          sender: sender || undefined,
-          centerId,
-          enterpriseId: enterpriseId || undefined,
-          notes: notes || undefined,
-          status: 'RECEIVED',
-        }),
-      })
+      // FormData (multipart) pour permettre l'upload du document
+      const fd = new FormData()
+      fd.append('recipient', recipient)
+      if (sender) fd.append('sender', sender)
+      fd.append('centerId', centerId)
+      if (enterpriseId) fd.append('enterpriseId', enterpriseId)
+      fd.append('type', type)
+      if (notes) fd.append('notes', notes)
+      fd.append('status', 'RECEIVED')
+      if (docFile) fd.append('document', docFile)
+
+      const res = await fetch('/api/mails', { method: 'POST', body: fd })
       if (!res.ok) {
         const d = await res.json().catch(() => ({}))
         toast.error(d.error || 'Erreur lors de l’enregistrement')
         return
       }
-      toast.success('Courrier enregistré')
+      toast.success(docFile ? 'Courrier enregistré avec document' : 'Courrier enregistré')
       router.push('/dashboard/courriers')
       router.refresh()
     } catch {
@@ -129,6 +138,18 @@ export default function NewMailPage() {
                 ))}
               </select>
             </div>
+            <div>
+              <label className="form-label">Type de courrier</label>
+              <select
+                value={type}
+                onChange={e => setType(e.target.value)}
+                className="form-input"
+              >
+                {TYPE_OPTIONS.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
             <div className="sm:col-span-2">
               <label className="form-label">Notes</label>
               <textarea
@@ -138,6 +159,45 @@ export default function NewMailPage() {
                 placeholder="Recommandé, urgent, lettre simple..."
                 className="form-input"
               />
+            </div>
+
+            {/* Champ upload document */}
+            <div className="sm:col-span-2">
+              <label className="form-label">
+                Document (scan du courrier)
+                <span className="text-gray-400 font-normal"> — optionnel</span>
+              </label>
+              {docFile ? (
+                <div className="flex items-center justify-between gap-3 p-3 rounded-lg border border-gold-200 bg-gold-50/50 dark:bg-gold-900/10">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Paperclip className="h-4 w-4 text-gold-600 shrink-0" />
+                    <span className="text-sm text-gray-700 truncate">{docFile.name}</span>
+                    <span className="text-xs text-gray-400 shrink-0">
+                      {(docFile.size / 1024).toFixed(0)} ko
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setDocFile(null)}
+                    className="p-1 hover:bg-gray-200 rounded text-gray-500 shrink-0"
+                    title="Retirer le fichier"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <label className="flex flex-col items-center justify-center gap-2 p-5 rounded-lg border-2 border-dashed border-gray-300 hover:border-gold-400 hover:bg-gold-50/30 cursor-pointer transition-colors">
+                  <Paperclip className="h-6 w-6 text-gray-400" />
+                  <span className="text-sm text-gray-600">Cliquer pour ajouter un document</span>
+                  <span className="text-xs text-gray-400">PDF, Word (DOC/DOCX), Excel, JPG, PNG — max 20 Mo</span>
+                  <input
+                    type="file"
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/jpeg,image/png,image/webp"
+                    onChange={e => setDocFile(e.target.files?.[0] ?? null)}
+                    className="hidden"
+                  />
+                </label>
+              )}
             </div>
           </div>
         </div>

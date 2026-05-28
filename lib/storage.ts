@@ -28,8 +28,24 @@ function getSupabase() {
 }
 
 /**
- * Cree le bucket s'il n'existe pas (idempotent).
- * A appeler au demarrage / au premier upload.
+ * Types MIME autorises dans le bucket (documents de courrier + contrats).
+ * PDF, Word (doc/docx), images de scan, Excel.
+ */
+export const ALLOWED_DOC_MIME = [
+  'application/pdf',
+  'application/msword',                                                       // .doc
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',  // .docx
+  'application/vnd.ms-excel',                                                 // .xls
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',        // .xlsx
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/heic',
+]
+
+/**
+ * Cree le bucket s'il n'existe pas (idempotent) + s'assure que les types
+ * MIME documents sont autorises (met a jour le bucket existant si besoin).
  */
 export async function ensureBucket(): Promise<void> {
   const supabase = getSupabase()
@@ -39,12 +55,46 @@ export async function ensureBucket(): Promise<void> {
     const { error } = await supabase.storage.createBucket(BUCKET, {
       public: false, // bucket privé
       fileSizeLimit: 20 * 1024 * 1024, // 20 MB max
-      allowedMimeTypes: ['application/pdf'],
+      allowedMimeTypes: ALLOWED_DOC_MIME,
     })
     if (error && !/already exists/i.test(error.message)) {
       throw error
     }
+  } else {
+    // Le bucket existe deja (cree a l'origine en PDF-only) : on elargit
+    // les types MIME autorises. Idempotent, ignore les erreurs benignes.
+    await supabase.storage
+      .updateBucket(BUCKET, {
+        public: false,
+        fileSizeLimit: 20 * 1024 * 1024,
+        allowedMimeTypes: ALLOWED_DOC_MIME,
+      })
+      .catch(() => {})
   }
+}
+
+/**
+ * Upload un document quelconque (PDF, DOCX, image...) dans le bucket.
+ * Retourne le path stockable en BDD.
+ */
+export async function uploadDocument(
+  path: string,
+  buffer: Buffer,
+  contentType: string
+): Promise<string> {
+  await ensureBucket()
+  const supabase = getSupabase()
+  const { error } = await supabase.storage
+    .from(BUCKET)
+    .upload(path, buffer, { contentType, upsert: true })
+  if (error) throw error
+  return path
+}
+
+/** Renvoie l'extension de fichier a partir du nom original (ou .bin par defaut). */
+export function extFromFilename(filename: string): string {
+  const m = filename.match(/\.([a-z0-9]+)$/i)
+  return m ? `.${m[1].toLowerCase()}` : '.bin'
 }
 
 /**
