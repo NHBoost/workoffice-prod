@@ -2,12 +2,18 @@
 
 import { useEffect, useState, FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import Link from 'next/link'
-import { ArrowLeft, Loader2, Save, UserPlus } from 'lucide-react'
+import { ArrowLeft, Loader2, Save, UserPlus, Lock } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 export default function AddUserPage() {
   const router = useRouter()
+  const { data: session } = useSession()
+  const isManager = session?.user?.role === 'MANAGER'
+  const isAdmin = session?.user?.role === 'ADMIN'
+  const managerCenterId = session?.user?.centerId ?? ''
+
   const [centers, setCenters] = useState<{ id: string; name: string }[]>([])
   const [submitting, setSubmitting] = useState(false)
 
@@ -15,16 +21,28 @@ export default function AddUserPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [phone, setPhone] = useState('')
+  // MANAGER ne peut pas creer d'ADMIN : on bloque sur USER par defaut
   const [role, setRole] = useState<'ADMIN' | 'MANAGER' | 'USER'>('USER')
-  const [centerId, setCenterId] = useState('')
+  const [centerId, setCenterId] = useState(isManager ? managerCenterId : '')
   const [isActive, setIsActive] = useState(true)
 
   useEffect(() => {
-    fetch('/api/centers')
-      .then(r => (r.ok ? r.json() : Promise.reject(r)))
-      .then(d => setCenters(d.centers || []))
-      .catch(() => toast.error('Impossible de charger les centres'))
-  }, [])
+    // ADMIN charge la liste complete des centres
+    // MANAGER : son centre est force, pas besoin de charger
+    if (!isManager) {
+      fetch('/api/centers')
+        .then(r => (r.ok ? r.json() : Promise.reject(r)))
+        .then(d => setCenters(d.centers || []))
+        .catch(() => toast.error('Impossible de charger les centres'))
+    }
+  }, [isManager])
+
+  // Au changement de session role (cas rare), force centerId pour MANAGER
+  useEffect(() => {
+    if (isManager && managerCenterId) {
+      setCenterId(managerCenterId)
+    }
+  }, [isManager, managerCenterId])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -140,7 +158,7 @@ export default function AddUserPage() {
               >
                 <option value="USER">Utilisateur</option>
                 <option value="MANAGER">Manager</option>
-                <option value="ADMIN">Administrateur</option>
+                {isAdmin && <option value="ADMIN">Administrateur</option>}
               </select>
               <p className="text-xs text-gray-500 mt-1">
                 {role === 'ADMIN' && 'Accès total à la plateforme'}
@@ -149,15 +167,33 @@ export default function AddUserPage() {
               </p>
             </div>
             <div>
-              <label className="form-label">Centre rattaché</label>
-              <select
-                value={centerId}
-                onChange={e => setCenterId(e.target.value)}
-                className="form-input"
-              >
-                <option value="">— Aucun centre —</option>
-                {centers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              <label className="form-label">
+                Centre rattaché
+                {isManager && (
+                  <span className="ml-2 inline-flex items-center gap-1 text-xs text-gray-500 font-normal">
+                    <Lock className="h-3 w-3" />
+                    Forcé à votre centre
+                  </span>
+                )}
+              </label>
+              {isManager ? (
+                <input
+                  type="text"
+                  value={session?.user?.centerId ? `Votre centre (rattachement automatique)` : 'Centre non défini'}
+                  readOnly
+                  disabled
+                  className="form-input bg-gray-50 cursor-not-allowed"
+                />
+              ) : (
+                <select
+                  value={centerId}
+                  onChange={e => setCenterId(e.target.value)}
+                  className="form-input"
+                >
+                  <option value="">— Aucun centre —</option>
+                  {centers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              )}
             </div>
           </div>
           <label className="flex items-center gap-2 mt-4 cursor-pointer">

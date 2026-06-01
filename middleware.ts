@@ -7,8 +7,10 @@ import { NextResponse } from 'next/server'
  */
 const ADMIN_ONLY_ROUTES = [
   '/dashboard/centers',
-  '/dashboard/users/add',
   '/api/centers',
+  // Note : /dashboard/users/add est volontairement ABSENT.
+  // MANAGER peut creer des users mais l'API force centerId=son centre
+  // et interdit la creation d'ADMIN (defense au niveau metier, pas routing).
 ]
 
 /**

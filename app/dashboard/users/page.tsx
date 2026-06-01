@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { getCachedData, setCachedData } from '@/lib/client-cache'
 import Link from 'next/link'
 import {
@@ -30,6 +31,10 @@ const PAGE_SIZE = 10
 
 export default function UsersPage() {
   const router = useRouter()
+  const { data: session } = useSession()
+  const isManager = session?.user?.role === 'MANAGER'
+  const isAdmin = session?.user?.role === 'ADMIN'
+
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [roleFilter, setRoleFilter] = useState<string>('all')
@@ -193,18 +198,20 @@ export default function UsersPage() {
       header: '',
       width: '60px',
       align: 'right',
-      render: u => (
-        <ActionMenu
-          items={[
-            { label: 'Voir le profil', icon: Eye, onClick: () => router.push(`/dashboard/users/${u.id}`) },
-            { label: 'Modifier le rôle', icon: Edit, onClick: () => setEditUser(u) },
-            'divider',
-            { label: 'Supprimer', icon: Trash2, danger: true, onClick: () => setConfirmDelete(u) },
-          ]}
-        />
-      ),
+      render: u => {
+        // Menu construit dynamiquement selon le role courant.
+        // MANAGER ne peut pas supprimer (action reservee ADMIN).
+        const items: any[] = [
+          { label: 'Voir le profil', icon: Eye, onClick: () => router.push(`/dashboard/users/${u.id}`) },
+          { label: 'Modifier le rôle', icon: Edit, onClick: () => setEditUser(u) },
+        ]
+        if (isAdmin) {
+          items.push('divider', { label: 'Supprimer', icon: Trash2, danger: true, onClick: () => setConfirmDelete(u) })
+        }
+        return <ActionMenu items={items} />
+      },
     },
-  ], [router])
+  ], [router, isAdmin])
 
   // Filtres actifs (chips)
   const chips = []
@@ -227,7 +234,9 @@ export default function UsersPage() {
     <div className="p-6 space-y-6 animate-fade-in">
       <PageHeader
         title="Utilisateurs"
-        description="Gérez les comptes utilisateurs et leurs permissions"
+        description={isManager
+          ? `Utilisateurs de votre centre uniquement`
+          : 'Gérez les comptes utilisateurs et leurs permissions'}
         actions={
           <>
             <Button variant="secondary" iconLeft={<Download className="h-4 w-4" />}>
@@ -258,13 +267,23 @@ export default function UsersPage() {
           tone="success"
           loading={loading && users.length === 0}
         />
-        <KpiCard
-          label="Administrateurs"
-          value={adminCount}
-          icon={UserPlusIcon}
-          tone="gold"
-          loading={loading && users.length === 0}
-        />
+        {isAdmin ? (
+          <KpiCard
+            label="Administrateurs"
+            value={adminCount}
+            icon={UserPlusIcon}
+            tone="gold"
+            loading={loading && users.length === 0}
+          />
+        ) : (
+          <KpiCard
+            label="Managers"
+            value={users.filter(u => u.role === 'MANAGER').length}
+            icon={UserPlusIcon}
+            tone="gold"
+            loading={loading && users.length === 0}
+          />
+        )}
         <KpiCard
           label="Inactifs"
           value={total - activeCount}
@@ -300,7 +319,7 @@ export default function UsersPage() {
               className="!h-9 w-auto min-w-[140px]"
             >
               <option value="all">Tous rôles</option>
-              <option value="ADMIN">Administrateurs</option>
+              {isAdmin && <option value="ADMIN">Administrateurs</option>}
               <option value="MANAGER">Managers</option>
               <option value="USER">Utilisateurs</option>
             </Select>
@@ -332,6 +351,7 @@ export default function UsersPage() {
           onClose={() => setEditUser(null)}
           onSave={handleUpdateUser}
           submitting={actingId === editUser.id}
+          canPromoteToAdmin={isAdmin}
         />
       )}
 
@@ -361,9 +381,10 @@ interface EditUserModalProps {
   onClose: () => void
   onSave: (updates: { role?: string; isActive?: boolean; phone?: string | null }) => Promise<void>
   submitting: boolean
+  canPromoteToAdmin: boolean // ADMIN seul peut promouvoir vers ADMIN
 }
 
-function EditUserModal({ user, onClose, onSave, submitting }: EditUserModalProps) {
+function EditUserModal({ user, onClose, onSave, submitting, canPromoteToAdmin }: EditUserModalProps) {
   const [role, setRole] = useState(user.role)
   const [isActive, setIsActive] = useState(user.isActive)
   const [phone, setPhone] = useState(user.phone ?? '')
@@ -402,7 +423,9 @@ function EditUserModal({ user, onClose, onSave, submitting }: EditUserModalProps
           >
             <option value="USER">USER — Client (accès portail uniquement)</option>
             <option value="MANAGER">MANAGER — Staff (gère son centre)</option>
-            <option value="ADMIN">ADMIN — Administrateur (accès total)</option>
+            {canPromoteToAdmin && (
+              <option value="ADMIN">ADMIN — Administrateur (accès total)</option>
+            )}
           </select>
           <p className="text-2xs text-text-subtle mt-1">
             ⚠️ Changer un USER → MANAGER ou ADMIN lui donne accès au dashboard admin.

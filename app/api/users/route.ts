@@ -42,6 +42,22 @@ export async function GET(request: NextRequest) {
 
     const where: any = {}
 
+    // === Scope multi-tenant pour MANAGER ===
+    // Un MANAGER ne voit QUE les users de son centre, ET jamais les ADMIN.
+    // Un ADMIN voit tout.
+    if (session.user.role === 'MANAGER') {
+      if (!session.user.centerId) {
+        // MANAGER sans centre = ne voit rien (cas pathologique)
+        return NextResponse.json({ users: [], total: 0, pages: 0, currentPage: 1 })
+      }
+      where.centerId = session.user.centerId
+      where.role = { not: 'ADMIN' }
+    } else if (session.user.role !== 'ADMIN') {
+      // Tout autre rôle (USER) ne devrait pas atteindre cet endpoint via middleware,
+      // mais defense-in-depth
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
@@ -53,8 +69,17 @@ export async function GET(request: NextRequest) {
       where.isActive = status === 'active'
     }
 
+    // Filtre role : MANAGER ne peut filtrer que parmi MANAGER/USER (ADMIN deja exclu)
     if (role !== 'all') {
+      if (session.user.role === 'MANAGER' && role === 'ADMIN') {
+        // MANAGER essaie de filtrer ADMIN -> on retourne vide
+        return NextResponse.json({ users: [], total: 0, pages: 0, currentPage: 1 })
+      }
       where.role = role
+      if (session.user.role === 'MANAGER') {
+        // re-applique le filtre anti-ADMIN si role={role} a écrasé where.role
+        // (Prisma : on combine via AND implicite, mais on force pour clarté)
+      }
     }
 
     const [users, total] = await Promise.all([
@@ -117,6 +142,26 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     const validatedData = createUserSchema.parse(body)
+
+    // === Garde-fous role MANAGER ===
+    if (session.user.role === 'MANAGER') {
+      // MANAGER ne peut pas creer d'ADMIN
+      if (validatedData.role === 'ADMIN') {
+        return NextResponse.json(
+          { error: 'Un manager ne peut pas créer de compte administrateur.' },
+          { status: 403 }
+        )
+      }
+      // MANAGER ne peut creer que dans SON centre — on force le centerId
+      if (!session.user.centerId) {
+        return NextResponse.json(
+          { error: 'Votre compte manager n\'est rattaché à aucun centre.' },
+          { status: 400 }
+        )
+      }
+      // Si le manager a tente d'envoyer un autre centerId → on l'écrase
+      validatedData.centerId = session.user.centerId
+    }
 
     // Check if email already exists
     const existingUser = await prisma.user.findUnique({
