@@ -1,14 +1,15 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, FormEvent } from 'react'
+import { useRouter } from 'next/navigation'
 import { getCachedData, setCachedData } from '@/lib/client-cache'
 import Link from 'next/link'
 import {
-  UserPlus, Eye, Edit, Trash2, Download, Mail as MailIcon, Phone,
+  UserPlus, Eye, Edit, Trash2, Download, Mail as MailIcon, Phone, Loader2, Save,
 } from 'lucide-react'
 import {
   PageHeader, KpiCard, StatGrid, DataTable, ActionMenu, FilterBar,
-  Pagination, RoleBadge, Avatar, Badge, Select, Button,
+  Pagination, RoleBadge, Avatar, Badge, Select, Button, Modal, ConfirmDialog,
 } from '@/components/ui'
 import { Users as UsersIcon, CheckCircle2, UserX, UserPlus as UserPlusIcon } from 'lucide-react'
 import type { Column } from '@/components/ui'
@@ -28,10 +29,14 @@ interface User {
 const PAGE_SIZE = 10
 
 export default function UsersPage() {
+  const router = useRouter()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [roleFilter, setRoleFilter] = useState<string>('all')
   const [page, setPage] = useState(1)
+  const [editUser, setEditUser] = useState<User | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<User | null>(null)
+  const [actingId, setActingId] = useState<string | null>(null)
 
   const cacheKey = `users-list:${search}:${statusFilter}:${roleFilter}:${page}`
   const cached = typeof window !== 'undefined' ? getCachedData<{users: User[], total: number}>(cacheKey, 2 * 60_000) : null
@@ -62,6 +67,47 @@ export default function UsersPage() {
 
   // Reset page sur changement de filtre
   useEffect(() => setPage(1), [search, statusFilter, roleFilter])
+
+  // === Actions sur un utilisateur ===
+  const handleDelete = async () => {
+    if (!confirmDelete) return
+    setActingId(confirmDelete.id)
+    try {
+      const res = await fetch(`/api/users/${confirmDelete.id}`, { method: 'DELETE' })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(body.error || 'Suppression échouée')
+        return
+      }
+      toast.success(`${confirmDelete.name || confirmDelete.email} supprimé`)
+      setConfirmDelete(null)
+      fetchUsers()
+    } finally {
+      setActingId(null)
+    }
+  }
+
+  const handleUpdateUser = async (updates: { role?: string; isActive?: boolean; phone?: string | null }) => {
+    if (!editUser) return
+    setActingId(editUser.id)
+    try {
+      const res = await fetch(`/api/users/${editUser.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(body.error || 'Mise à jour échouée')
+        return
+      }
+      toast.success('Utilisateur mis à jour')
+      setEditUser(null)
+      fetchUsers()
+    } finally {
+      setActingId(null)
+    }
+  }
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const activeCount = users.filter(u => u.isActive).length
@@ -150,15 +196,15 @@ export default function UsersPage() {
       render: u => (
         <ActionMenu
           items={[
-            { label: 'Voir le profil', icon: Eye, onClick: () => toast('Détail à venir') },
-            { label: 'Modifier', icon: Edit, onClick: () => toast('Edition à venir') },
+            { label: 'Voir le profil', icon: Eye, onClick: () => router.push(`/dashboard/users/${u.id}`) },
+            { label: 'Modifier le rôle', icon: Edit, onClick: () => setEditUser(u) },
             'divider',
-            { label: 'Supprimer', icon: Trash2, danger: true, onClick: () => toast.error('Suppression à venir') },
+            { label: 'Supprimer', icon: Trash2, danger: true, onClick: () => setConfirmDelete(u) },
           ]}
         />
       ),
     },
-  ], [])
+  ], [router])
 
   // Filtres actifs (chips)
   const chips = []
@@ -278,6 +324,125 @@ export default function UsersPage() {
         pageSize={PAGE_SIZE}
         onPageChange={setPage}
       />
+
+      {/* Modal édition rôle + statut */}
+      {editUser && (
+        <EditUserModal
+          user={editUser}
+          onClose={() => setEditUser(null)}
+          onSave={handleUpdateUser}
+          submitting={actingId === editUser.id}
+        />
+      )}
+
+      {/* Confirm delete */}
+      <ConfirmDialog
+        open={!!confirmDelete}
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={handleDelete}
+        loading={actingId === confirmDelete?.id}
+        title="Supprimer l'utilisateur ?"
+        description={confirmDelete
+          ? `Cette action supprimera définitivement ${confirmDelete.name || confirmDelete.email}. Si l'utilisateur est lié à un client portail, le lien sera rompu. Action irréversible.`
+          : ''}
+        confirmLabel="Supprimer définitivement"
+        tone="danger"
+      />
     </div>
+  )
+}
+
+// ============================================================
+// Modal d'édition rôle + statut + téléphone
+// ============================================================
+
+interface EditUserModalProps {
+  user: User
+  onClose: () => void
+  onSave: (updates: { role?: string; isActive?: boolean; phone?: string | null }) => Promise<void>
+  submitting: boolean
+}
+
+function EditUserModal({ user, onClose, onSave, submitting }: EditUserModalProps) {
+  const [role, setRole] = useState(user.role)
+  const [isActive, setIsActive] = useState(user.isActive)
+  const [phone, setPhone] = useState(user.phone ?? '')
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    const updates: any = {}
+    if (role !== user.role) updates.role = role
+    if (isActive !== user.isActive) updates.isActive = isActive
+    if (phone !== (user.phone ?? '')) updates.phone = phone || null
+    if (Object.keys(updates).length === 0) {
+      toast('Aucune modification')
+      onClose()
+      return
+    }
+    await onSave(updates)
+  }
+
+  return (
+    <Modal open onClose={onClose} title="Modifier l'utilisateur" size="md">
+      <div className="mb-4 p-3 rounded-lg bg-surface-2 flex items-center gap-3">
+        <Avatar name={user.name} email={user.email} size="md" />
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-text truncate">{user.name || '—'}</p>
+          <p className="text-xs text-text-muted truncate">{user.email}</p>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-xs font-medium text-text-muted mb-1.5">Rôle</label>
+          <select
+            value={role}
+            onChange={e => setRole(e.target.value)}
+            className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-surface text-text outline-none focus:ring-2 focus:ring-gold-400/40"
+          >
+            <option value="USER">USER — Client (accès portail uniquement)</option>
+            <option value="MANAGER">MANAGER — Staff (gère son centre)</option>
+            <option value="ADMIN">ADMIN — Administrateur (accès total)</option>
+          </select>
+          <p className="text-2xs text-text-subtle mt-1">
+            ⚠️ Changer un USER → MANAGER ou ADMIN lui donne accès au dashboard admin.
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-text-muted mb-1.5">Téléphone</label>
+          <input
+            type="tel"
+            value={phone}
+            onChange={e => setPhone(e.target.value)}
+            placeholder="+32 470 12 34 56"
+            className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-surface text-text outline-none focus:ring-2 focus:ring-gold-400/40"
+          />
+        </div>
+
+        <label className="flex items-start gap-2.5 p-3 rounded-lg bg-surface-2 cursor-pointer hover:bg-surface-3 transition-colors">
+          <input
+            type="checkbox"
+            checked={isActive}
+            onChange={e => setIsActive(e.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-border text-gold-600 focus:ring-gold-400/40"
+          />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-text">Compte actif</p>
+            <p className="text-2xs text-text-muted mt-0.5">
+              {isActive ? 'L\'utilisateur peut se connecter.' : 'L\'utilisateur ne peut plus se connecter.'}
+            </p>
+          </div>
+        </label>
+
+        <div className="flex justify-end gap-2 pt-2">
+          <button type="button" onClick={onClose} className="btn btn-ghost">Annuler</button>
+          <button type="submit" disabled={submitting} className="btn btn-primary">
+            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Enregistrer
+          </button>
+        </div>
+      </form>
+    </Modal>
   )
 }
