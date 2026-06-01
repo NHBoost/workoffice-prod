@@ -22,6 +22,7 @@ export async function GET(
       where: { id: params.id },
       include: {
         enterprise: { select: { id: true, name: true, address: true, city: true, postalCode: true } },
+        client: { select: { id: true, societeDenomination: true, nom: true, prenom: true, adresseSiege: true } },
         subscription: true,
       },
     })

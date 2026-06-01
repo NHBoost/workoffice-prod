@@ -40,13 +40,17 @@ export async function GET(request: NextRequest) {
       where.OR = [
         { number: { contains: search, mode: 'insensitive' } },
         { enterprise: { name: { contains: search, mode: 'insensitive' } } },
+        { client: { societeDenomination: { contains: search, mode: 'insensitive' } } },
       ]
     }
 
     const [invoices, totals] = await Promise.all([
       prisma.invoice.findMany({
         where,
-        include: { enterprise: { select: { id: true, name: true } } },
+        include: {
+          enterprise: { select: { id: true, name: true } },
+          client: { select: { id: true, societeDenomination: true, nom: true, prenom: true } },
+        },
         orderBy: { issuedAt: 'desc' },
         take: 100,
       }),

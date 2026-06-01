@@ -25,7 +25,20 @@ interface Invoice {
   status: 'PENDING' | 'PAID' | 'OVERDUE' | 'CANCELLED' | string
   issuedAt: string
   paidAt: string | null
-  enterprise: { id: string; name: string }
+  // Une facture peut etre liee soit a une Enterprise (legacy), soit
+  // a un Client (portail), soit aux deux. Au moins l'un des deux.
+  enterprise: { id: string; name: string } | null
+  client: { id: string; societeDenomination: string; nom: string; prenom: string } | null
+}
+
+// Helper : extrait le nom du payeur (entreprise OU client) pour affichage
+function payeurName(i: Invoice): string {
+  return i.enterprise?.name || i.client?.societeDenomination || '—'
+}
+function payeurLink(i: Invoice): string | null {
+  if (i.enterprise) return `/dashboard/entreprises/${i.enterprise.id}`
+  if (i.client) return `/dashboard/clients/${i.client.id}`
+  return null
 }
 
 const PAGE_SIZE = 12
@@ -116,8 +129,18 @@ export default function InvoicesPage() {
       key: 'enterprise',
       header: 'Client',
       sortable: true,
-      sortValue: i => i.enterprise.name,
-      render: i => <span className="font-medium">{i.enterprise.name}</span>,
+      sortValue: i => payeurName(i),
+      render: i => {
+        const link = payeurLink(i)
+        const name = payeurName(i)
+        return link ? (
+          <Link href={link} className="font-medium text-text hover:text-gold-600 transition-colors">
+            {name}
+          </Link>
+        ) : (
+          <span className="font-medium text-text-subtle italic">{name}</span>
+        )
+      },
     },
     {
       key: 'amount',

@@ -31,7 +31,14 @@ interface Invoice {
     address: string
     city: string
     postalCode: string
-  }
+  } | null
+  client: {
+    id: string
+    societeDenomination: string
+    nom: string
+    prenom: string
+    adresseSiege?: string
+  } | null
 }
 
 const statusLabel = (s: string) =>
@@ -174,11 +181,25 @@ export default function InvoiceDetailPage({ params }: { params: { id: string } }
             <Building className="h-5 w-5 text-primary-600" />
             Client
           </h2>
-          <p className="font-medium text-gray-900">{invoice.enterprise.name}</p>
-          <p className="text-sm text-gray-600 mt-2">{invoice.enterprise.address}</p>
-          <p className="text-sm text-gray-600">
-            {invoice.enterprise.postalCode} {invoice.enterprise.city}
-          </p>
+          {invoice.enterprise ? (
+            <>
+              <p className="font-medium text-gray-900">{invoice.enterprise.name}</p>
+              <p className="text-sm text-gray-600 mt-2">{invoice.enterprise.address}</p>
+              <p className="text-sm text-gray-600">
+                {invoice.enterprise.postalCode} {invoice.enterprise.city}
+              </p>
+            </>
+          ) : invoice.client ? (
+            <>
+              <p className="font-medium text-gray-900">{invoice.client.societeDenomination}</p>
+              <p className="text-sm text-gray-600 mt-2">{invoice.client.prenom} {invoice.client.nom}</p>
+              {invoice.client.adresseSiege && (
+                <p className="text-sm text-gray-600">{invoice.client.adresseSiege}</p>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-gray-400 italic">Aucun payeur associé</p>
+          )}
         </div>
 
         <div className="card p-6">
