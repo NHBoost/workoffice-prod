@@ -16,7 +16,8 @@ import { CONTRAT_HTML, CGV_HTML, RGPD_HTML } from './contract-templates-data'
  *   eid.dateDebutValidite, eid.dateFinValidite, eid.registreNational
  *   entreprise.nom, entreprise.formejuridique, entreprise.tva,
  *   entreprise.nace, entreprise.email, entreprise.telephone,
- *   entreprise.administrateur, entreprise.dateconstitution
+ *   entreprise.administrateur, entreprise.dateconstitution,
+ *   entreprise.adresseSiege (siege actuel du client, fallback Prestigia)
  *   formule.montantMensuel, formule.garantie
  */
 
@@ -44,6 +45,7 @@ export interface ContractVariables {
     telephone: string
     administrateur: string
     dateconstitution: string
+    adresseSiege: string
   }
   formule: {
     montantMensuel: string
@@ -226,6 +228,10 @@ export function clientToVariables(input: {
       telephone: client.telephoneSociete,
       administrateur: `${client.prenom} ${client.nom} (${client.fonction})`,
       dateconstitution: fr(client.dateConstitution),
+      // Adresse du siege social du Client (saisie au formulaire).
+      // Defaut : adresse Prestigia si vide.
+      adresseSiege: (client.adresseSiege && client.adresseSiege.trim())
+        || 'Lozenberg 21, 1932 Zaventem',
     },
     formule: {
       montantMensuel: eur(montantMensuelHt),
