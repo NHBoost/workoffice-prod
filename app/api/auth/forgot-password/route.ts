@@ -58,9 +58,11 @@ export async function POST(request: NextRequest) {
       })
 
       if (!recent) {
-        // Revoque les anciens tokens actifs du user (un seul actif à la fois)
+        // Revoque TOUS les anciens tokens du user (userId est @unique en BDD :
+        // un seul token par user). Il faut aussi supprimer les tokens deja
+        // utilises, sinon le create() viole la contrainte unique -> 500.
         await prisma.passwordSetupToken.deleteMany({
-          where: { userId: user.id, usedAt: null },
+          where: { userId: user.id },
         })
 
         // Genere un token 32 bytes hex (64 chars) — 1h de validite
