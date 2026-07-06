@@ -12,11 +12,20 @@ interface Enterprise {
   email: string | null
   contactPerson: string | null
 }
+interface Client {
+  id: string
+  societeDenomination: string
+  nom: string
+  prenom: string
+  emailPerso: string
+  emailSociete: string
+}
 
 export default function NewCampaignPage() {
   const router = useRouter()
   const [submitting, setSubmitting] = useState(false)
   const [enterprises, setEnterprises] = useState<Enterprise[]>([])
+  const [clients, setClients] = useState<Client[]>([])
 
   const [name, setName] = useState('')
   const [subject, setSubject] = useState('')
@@ -27,10 +36,13 @@ export default function NewCampaignPage() {
   const [newName, setNewName] = useState('')
 
   useEffect(() => {
-    fetch('/api/enterprises?limit=200')
-      .then(r => (r.ok ? r.json() : Promise.reject(r)))
-      .then(d => setEnterprises(d.enterprises || []))
-      .catch(() => toast.error('Impossible de charger les entreprises'))
+    Promise.all([
+      fetch('/api/enterprises?limit=200').then(r => r.ok ? r.json() : { enterprises: [] }).catch(() => ({ enterprises: [] })),
+      fetch('/api/clients?limit=200').then(r => r.ok ? r.json() : { clients: [] }).catch(() => ({ clients: [] })),
+    ]).then(([e, cl]) => {
+      setEnterprises(e.enterprises || [])
+      setClients(cl.clients || [])
+    }).catch(() => toast.error('Impossible de charger la liste des destinataires'))
   }, [])
 
   const addRecipient = () => {
@@ -50,13 +62,27 @@ export default function NewCampaignPage() {
   const removeRecipient = (email: string) =>
     setRecipients(recipients.filter(r => r.email !== email))
 
-  const importAllEnterprises = () => {
-    const valid = enterprises
-      .filter(e => e.email)
-      .map(e => ({ email: e.email!, name: e.contactPerson || e.name }))
+  const importAll = (source: 'enterprises' | 'clients' | 'all') => {
+    const list: { email: string; name?: string }[] = []
+    if (source === 'enterprises' || source === 'all') {
+      for (const e of enterprises) {
+        if (e.email) list.push({ email: e.email, name: e.contactPerson || e.name })
+      }
+    }
+    if (source === 'clients' || source === 'all') {
+      for (const c of clients) {
+        // Email personnel du representant legal (utilise pour le portail)
+        if (c.emailPerso) {
+          list.push({
+            email: c.emailPerso,
+            name: `${c.prenom} ${c.nom} — ${c.societeDenomination}`,
+          })
+        }
+      }
+    }
     const merged = [...recipients]
     let added = 0
-    for (const v of valid) {
+    for (const v of list) {
       if (!merged.some(m => m.email === v.email)) {
         merged.push(v)
         added++
@@ -176,14 +202,35 @@ export default function NewCampaignPage() {
             <h2 className="text-lg font-semibold text-gray-900">
               Destinataires <span className="text-sm font-normal text-gray-500">({recipients.length})</span>
             </h2>
-            <button
-              type="button"
-              onClick={importAllEnterprises}
-              className="btn-secondary text-sm"
-            >
-              <Users className="h-4 w-4" />
-              Importer toutes les entreprises
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => importAll('clients')}
+                className="btn-secondary text-sm"
+                disabled={clients.length === 0}
+                title={clients.length === 0 ? 'Aucun client disponible' : `${clients.length} clients disponibles`}
+              >
+                <Users className="h-4 w-4" />
+                Importer les clients ({clients.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => importAll('enterprises')}
+                className="btn-secondary text-sm"
+                disabled={enterprises.length === 0}
+              >
+                <Users className="h-4 w-4" />
+                Importer les entreprises ({enterprises.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => importAll('all')}
+                className="btn-secondary text-sm"
+              >
+                <Users className="h-4 w-4" />
+                Importer TOUT
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4">

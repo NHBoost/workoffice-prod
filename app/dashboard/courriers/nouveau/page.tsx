@@ -13,30 +13,48 @@ const TYPE_OPTIONS = [
   { value: 'OFFICIEL', label: 'Officiel' },
 ]
 
+// Un payeur (Enterprise ou Client) uniformisé pour le dropdown
+interface Payeur { id: string; label: string; kind: 'enterprise' | 'client' }
+
 export default function NewMailPage() {
   const router = useRouter()
   const [centers, setCenters] = useState<{ id: string; name: string }[]>([])
-  const [enterprises, setEnterprises] = useState<{ id: string; name: string }[]>([])
+  const [payeurs, setPayeurs] = useState<Payeur[]>([])
   const [submitting, setSubmitting] = useState(false)
 
   const [recipient, setRecipient] = useState('')
   const [sender, setSender] = useState('')
   const [centerId, setCenterId] = useState('')
-  const [enterpriseId, setEnterpriseId] = useState('')
+  // payeurSelect = "kind:id" (ex: "client:abc123") ou "" pour aucun
+  const [payeurSelect, setPayeurSelect] = useState('')
   const [type, setType] = useState('STANDARD')
   const [notes, setNotes] = useState('')
   const [docFile, setDocFile] = useState<File | null>(null)
 
   useEffect(() => {
+    // Fetch centres + entreprises + clients en parallele.
+    // Les clients sont maintenant la source principale (Etape 1 du CDC),
+    // mais on garde les entreprises pour la retrocompatibilite.
     Promise.all([
       fetch('/api/centers').then(r => (r.ok ? r.json() : Promise.reject(r))),
-      fetch('/api/enterprises?limit=200').then(r => (r.ok ? r.json() : Promise.reject(r))),
+      fetch('/api/enterprises?limit=200').then(r => (r.ok ? r.json() : Promise.reject(r))).catch(() => ({ enterprises: [] })),
+      fetch('/api/clients?limit=200').then(r => (r.ok ? r.json() : Promise.reject(r))).catch(() => ({ clients: [] })),
     ])
-      .then(([c, e]) => {
+      .then(([c, e, cl]) => {
         const cs = (c.centers || []).map((x: any) => ({ id: x.id, name: x.name }))
-        const es = (e.enterprises || []).map((x: any) => ({ id: x.id, name: x.name }))
+        const clients: Payeur[] = (cl.clients || []).map((x: any) => ({
+          id: x.id,
+          label: `${x.societeDenomination} (${x.prenom} ${x.nom})`,
+          kind: 'client' as const,
+        }))
+        const enterprises: Payeur[] = (e.enterprises || []).map((x: any) => ({
+          id: x.id,
+          label: x.name,
+          kind: 'enterprise' as const,
+        }))
         setCenters(cs)
-        setEnterprises(es)
+        // Clients en premier (nouveau) + entreprises apres (legacy)
+        setPayeurs([...clients, ...enterprises])
         if (cs.length && !centerId) setCenterId(cs[0].id)
       })
       .catch(() => toast.error('Impossible de charger les données'))
@@ -52,7 +70,12 @@ export default function NewMailPage() {
       fd.append('recipient', recipient)
       if (sender) fd.append('sender', sender)
       fd.append('centerId', centerId)
-      if (enterpriseId) fd.append('enterpriseId', enterpriseId)
+      // Parse "kind:id" et envoie le bon champ
+      if (payeurSelect) {
+        const [kind, id] = payeurSelect.split(':')
+        if (kind === 'client') fd.append('clientId', id)
+        else if (kind === 'enterprise') fd.append('enterpriseId', id)
+      }
       fd.append('type', type)
       if (notes) fd.append('notes', notes)
       fd.append('status', 'RECEIVED')
@@ -126,16 +149,27 @@ export default function NewMailPage() {
               </select>
             </div>
             <div className="sm:col-span-2">
-              <label className="form-label">Entreprise concernée</label>
+              <label className="form-label">Client / Entreprise concerné(e)</label>
               <select
-                value={enterpriseId}
-                onChange={e => setEnterpriseId(e.target.value)}
+                value={payeurSelect}
+                onChange={e => setPayeurSelect(e.target.value)}
                 className="form-input"
               >
-                <option value="">— Aucune (courrier personnel) —</option>
-                {enterprises.map(e => (
-                  <option key={e.id} value={e.id}>{e.name}</option>
-                ))}
+                <option value="">— Aucun (courrier personnel) —</option>
+                {payeurs.filter(p => p.kind === 'client').length > 0 && (
+                  <optgroup label="Clients">
+                    {payeurs.filter(p => p.kind === 'client').map(p => (
+                      <option key={`client:${p.id}`} value={`client:${p.id}`}>{p.label}</option>
+                    ))}
+                  </optgroup>
+                )}
+                {payeurs.filter(p => p.kind === 'enterprise').length > 0 && (
+                  <optgroup label="Entreprises (legacy)">
+                    {payeurs.filter(p => p.kind === 'enterprise').map(p => (
+                      <option key={`ent:${p.id}`} value={`enterprise:${p.id}`}>{p.label}</option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
             </div>
             <div>

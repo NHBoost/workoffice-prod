@@ -6,20 +6,18 @@ import Link from 'next/link'
 import { ArrowLeft, Loader2, Save } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-interface Enterprise {
-  id: string
-  name: string
-}
+interface Payeur { id: string; label: string; kind: 'enterprise' | 'client' }
 
 const TVA_RATE = 0.21 // 21 % Belgique
 
 export default function NewInvoicePage() {
   const router = useRouter()
-  const [enterprises, setEnterprises] = useState<Enterprise[]>([])
+  const [payeurs, setPayeurs] = useState<Payeur[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
 
-  const [enterpriseId, setEnterpriseId] = useState('')
+  // payeurSelect = "kind:id" (ex: "client:abc123")
+  const [payeurSelect, setPayeurSelect] = useState('')
   const [number, setNumber] = useState('')
   const [amount, setAmount] = useState<number>(0)
   const [taxRate, setTaxRate] = useState(TVA_RATE)
@@ -31,10 +29,24 @@ export default function NewInvoicePage() {
   const [status, setStatus] = useState<'PENDING' | 'PAID'>('PENDING')
 
   useEffect(() => {
-    fetch('/api/enterprises?limit=200')
-      .then(r => (r.ok ? r.json() : Promise.reject(r)))
-      .then(d => setEnterprises(d.enterprises || []))
-      .catch(() => toast.error('Impossible de charger les entreprises'))
+    // Fetch clients + entreprises en parallele : les clients sont la
+    // source principale (Etape 1 CDC), les entreprises restent en legacy.
+    Promise.all([
+      fetch('/api/enterprises?limit=200').then(r => r.ok ? r.json() : { enterprises: [] }).catch(() => ({ enterprises: [] })),
+      fetch('/api/clients?limit=200').then(r => r.ok ? r.json() : { clients: [] }).catch(() => ({ clients: [] })),
+    ]).then(([e, cl]) => {
+      const clients: Payeur[] = (cl.clients || []).map((x: any) => ({
+        id: x.id,
+        label: `${x.societeDenomination} (${x.prenom} ${x.nom})`,
+        kind: 'client' as const,
+      }))
+      const enterprises: Payeur[] = (e.enterprises || []).map((x: any) => ({
+        id: x.id,
+        label: x.name,
+        kind: 'enterprise' as const,
+      }))
+      setPayeurs([...clients, ...enterprises])
+    }).catch(() => toast.error('Impossible de charger la liste des clients'))
   }, [])
 
   const taxAmount = amount * taxRate
@@ -45,17 +57,26 @@ export default function NewInvoicePage() {
     setErrors({})
     setSubmitting(true)
     try {
+      if (!payeurSelect) {
+        setErrors({ enterpriseId: 'Sélectionne un client ou une entreprise' })
+        toast.error('Sélectionne un client ou une entreprise')
+        return
+      }
+      const [kind, id] = payeurSelect.split(':')
+      const body: any = {
+        number: number.trim() || undefined,
+        amount: Number(amount),
+        taxAmount: Number(taxAmount.toFixed(2)),
+        dueDate,
+        status,
+      }
+      if (kind === 'client') body.clientId = id
+      else body.enterpriseId = id
+
       const res = await fetch('/api/invoices', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          enterpriseId,
-          number: number.trim() || undefined,
-          amount: Number(amount),
-          taxAmount: Number(taxAmount.toFixed(2)),
-          dueDate,
-          status,
-        }),
+        body: JSON.stringify(body),
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
@@ -98,17 +119,28 @@ export default function NewInvoicePage() {
         <div>
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Destinataire</h2>
           <div>
-            <label className="form-label">Entreprise <span className="text-red-500">*</span></label>
+            <label className="form-label">Client / Entreprise <span className="text-red-500">*</span></label>
             <select
-              value={enterpriseId}
-              onChange={e => setEnterpriseId(e.target.value)}
+              value={payeurSelect}
+              onChange={e => setPayeurSelect(e.target.value)}
               required
               className={`form-input ${errors.enterpriseId ? 'border-red-500' : ''}`}
             >
-              <option value="">Sélectionner une entreprise</option>
-              {enterprises.map(e => (
-                <option key={e.id} value={e.id}>{e.name}</option>
-              ))}
+              <option value="">— Sélectionner un client ou une entreprise —</option>
+              {payeurs.filter(p => p.kind === 'client').length > 0 && (
+                <optgroup label="Clients">
+                  {payeurs.filter(p => p.kind === 'client').map(p => (
+                    <option key={`client:${p.id}`} value={`client:${p.id}`}>{p.label}</option>
+                  ))}
+                </optgroup>
+              )}
+              {payeurs.filter(p => p.kind === 'enterprise').length > 0 && (
+                <optgroup label="Entreprises (legacy)">
+                  {payeurs.filter(p => p.kind === 'enterprise').map(p => (
+                    <option key={`ent:${p.id}`} value={`enterprise:${p.id}`}>{p.label}</option>
+                  ))}
+                </optgroup>
+              )}
             </select>
             {errors.enterpriseId && <p className="text-xs text-red-600 mt-1">{errors.enterpriseId}</p>}
           </div>

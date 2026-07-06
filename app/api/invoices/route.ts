@@ -6,12 +6,18 @@ import { z } from 'zod'
 
 const invoiceSchema = z.object({
   number: z.string().min(1).optional(),
-  enterpriseId: z.string().min(1, 'Entreprise requise'),
+  // Le payeur est soit une Enterprise (legacy) soit un Client (portail),
+  // au moins l'un des deux requis (verifie par le refine ci-dessous).
+  enterpriseId: z.string().optional(),
+  clientId: z.string().optional(),
   subscriptionId: z.string().optional(),
   amount: z.number().nonnegative(),
   taxAmount: z.number().nonnegative().default(0),
   dueDate: z.string().min(1, 'Date d’échéance requise'),
   status: z.enum(['PENDING', 'PAID', 'OVERDUE', 'CANCELLED']).default('PENDING'),
+}).refine(d => d.enterpriseId || d.clientId, {
+  message: 'Vous devez sélectionner une entreprise ou un client',
+  path: ['enterpriseId'],
 })
 
 function generateInvoiceNumber() {
@@ -87,7 +93,8 @@ export async function POST(request: NextRequest) {
     const invoice = await prisma.invoice.create({
       data: {
         number: data.number || generateInvoiceNumber(),
-        enterpriseId: data.enterpriseId,
+        enterpriseId: data.enterpriseId || null,
+        clientId: data.clientId || null,
         subscriptionId: data.subscriptionId || null,
         amount: data.amount,
         taxAmount: data.taxAmount,
@@ -95,7 +102,10 @@ export async function POST(request: NextRequest) {
         dueDate: new Date(data.dueDate),
         status: data.status,
       },
-      include: { enterprise: { select: { id: true, name: true } } },
+      include: {
+        enterprise: { select: { id: true, name: true } },
+        client: { select: { id: true, societeDenomination: true } },
+      },
     })
 
     return NextResponse.json(invoice, { status: 201 })
