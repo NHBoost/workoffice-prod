@@ -22,17 +22,22 @@ export async function GET(request: NextRequest) {
 
   const entry = await prisma.passwordSetupToken.findUnique({
     where: { token },
-    include: { user: { select: { email: true, name: true } } },
+    include: { user: { select: { email: true, name: true, password: true } } },
   })
 
   if (!entry) return NextResponse.json({ error: 'Lien invalide' }, { status: 404 })
   if (entry.usedAt) return NextResponse.json({ error: 'Lien déjà utilisé' }, { status: 410 })
   if (entry.expiresAt < new Date()) return NextResponse.json({ error: 'Lien expiré' }, { status: 410 })
 
+  // "initial" si le user n'a pas encore de mot de passe (premier login)
+  // "reset" si le user a deja un mot de passe (mot de passe oublie)
+  const mode: 'initial' | 'reset' = entry.user.password ? 'reset' : 'initial'
+
   return NextResponse.json({
     ok: true,
     email: entry.user.email,
     name: entry.user.name,
+    mode,
   })
 }
 

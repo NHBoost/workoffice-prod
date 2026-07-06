@@ -116,6 +116,38 @@ const baseStyles = `
   .footer { font-size: 12px; color: #999; margin-top: 32px; padding-top: 24px; border-top: 1px solid #eee; }
 `
 
+/** Email de reinitialisation de mot de passe (token 1h). */
+export function resetPasswordEmail(opts: {
+  prenom: string | null
+  resetUrl: string
+  ip?: string
+}): { subject: string; html: string; text: string } {
+  const greeting = opts.prenom ? `Bonjour ${opts.prenom},` : 'Bonjour,'
+  return {
+    subject: 'Réinitialisation de votre mot de passe Prestigia',
+    html: `
+      <!doctype html><html><head><meta charset="utf-8"><style>${baseStyles}</style></head><body>
+        <div class="card">
+          <div class="brand">Prestigia</div>
+          <div class="brand-sub">Business Center</div>
+          <h1>${greeting}</h1>
+          <p>Vous avez demandé la réinitialisation de votre mot de passe. Cliquez sur le bouton ci-dessous pour en définir un nouveau.</p>
+          <p style="text-align:center;"><a href="${opts.resetUrl}" class="btn">Réinitialiser mon mot de passe</a></p>
+          <p style="background:#fef3c7;border-left:3px solid #C9A227;padding:10px 14px;border-radius:6px;color:#92400e;">
+            ⏱️ Ce lien est valable <strong>1 heure</strong> uniquement.
+          </p>
+          <p>Si vous n'êtes pas à l'origine de cette demande, ignorez cet email — votre mot de passe actuel reste inchangé.</p>
+          ${opts.ip ? `<p style="font-size:12px;color:#999;">Demande initiée depuis l'IP : <code>${opts.ip}</code></p>` : ''}
+          <div class="footer">
+            <p>SRL Prestigia · Lozenberg 21, 1932 Zaventem · BCE 1031.227.487</p>
+          </div>
+        </div>
+      </body></html>
+    `,
+    text: `${greeting}\n\nVous avez demandé la réinitialisation de votre mot de passe Prestigia.\n\nCliquez sur ce lien pour en définir un nouveau (valable 1 heure) :\n${opts.resetUrl}\n\nSi vous n'êtes pas à l'origine de cette demande, ignorez cet email.\n\nSRL Prestigia`,
+  }
+}
+
 /** Email d'invitation : lien pour definir le mot de passe (token 7j). */
 export function setupPasswordEmail(opts: {
   prenom: string

@@ -10,7 +10,7 @@ export default function SetupPasswordPage({ params }: { params: { token: string 
   const router = useRouter()
   const [state, setState] = useState<'loading' | 'ready' | 'invalid' | 'done'>('loading')
   const [errorMsg, setErrorMsg] = useState<string>('')
-  const [userInfo, setUserInfo] = useState<{ email: string; name: string | null } | null>(null)
+  const [userInfo, setUserInfo] = useState<{ email: string; name: string | null; mode: 'initial' | 'reset' } | null>(null)
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [showPwd, setShowPwd] = useState(false)
@@ -25,7 +25,7 @@ export default function SetupPasswordPage({ params }: { params: { token: string 
           setState('invalid')
           return
         }
-        setUserInfo({ email: body.email, name: body.name })
+        setUserInfo({ email: body.email, name: body.name, mode: body.mode ?? 'initial' })
         setState('ready')
       })
       .catch(() => {
@@ -118,10 +118,14 @@ export default function SetupPasswordPage({ params }: { params: { token: string 
                   <Lock className="h-5 w-5" />
                 </div>
                 <h1 className="text-xl font-semibold tracking-tight text-text">
-                  Bienvenue {userInfo.name?.split(' ')[0] ?? ''}
+                  {userInfo.mode === 'reset'
+                    ? 'Nouveau mot de passe'
+                    : `Bienvenue ${userInfo.name?.split(' ')[0] ?? ''}`}
                 </h1>
                 <p className="text-sm text-text-muted mt-1">
-                  Définis ton mot de passe pour accéder à ton espace client.
+                  {userInfo.mode === 'reset'
+                    ? 'Choisis un nouveau mot de passe pour ton compte.'
+                    : 'Définis ton mot de passe pour accéder à ton espace client.'}
                 </p>
                 <p className="text-2xs text-text-subtle mt-2">
                   Compte : <span className="font-medium text-text">{userInfo.email}</span>
