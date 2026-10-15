@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Loader2, Save, Paperclip, X } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { directUpload } from '@/lib/direct-upload'
 
 const TYPE_OPTIONS = [
   { value: 'STANDARD', label: 'Standard' },
@@ -13,7 +14,7 @@ const TYPE_OPTIONS = [
   { value: 'OFFICIEL', label: 'Officiel' },
 ]
 
-const MAX_UPLOAD_BYTES = 4 * 1024 * 1024
+const MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 
 // Un payeur (Enterprise ou Client) uniformisé pour le dropdown
 interface Payeur { id: string; label: string; kind: 'enterprise' | 'client' }
@@ -77,34 +78,48 @@ export default function NewMailPage() {
     }
     // Limite de taille d'une requete sur Vercel (~4,5 Mo)
     if (docFile && docFile.size > MAX_UPLOAD_BYTES) {
-      toast.error('Fichier trop volumineux (max 4 Mo). Compressez le scan ou réduisez sa résolution.')
+      toast.error('Fichier trop volumineux (max 20 Mo)')
       return
     }
     setSubmitting(true)
     try {
-      // FormData (multipart) pour permettre l'upload du document
-      const fd = new FormData()
-      fd.append('recipient', recipient)
-      if (sender) fd.append('sender', sender)
-      fd.append('centerId', centerId)
-      // Parse "kind:id" et envoie le bon champ
+      // 1. Upload direct du document vers Supabase (pas de limite Vercel)
+      let documentPath: string | undefined
+      if (docFile) {
+        try {
+          documentPath = await directUpload(docFile, { purpose: 'mail', centerId })
+        } catch (err: any) {
+          toast.error(err.message || 'Upload du document échoué')
+          return
+        }
+      }
+
+      // 2. Creation du courrier (JSON, avec le chemin du document)
+      const body: Record<string, any> = {
+        recipient,
+        centerId,
+        type,
+        status: 'RECEIVED',
+        notifyClient,
+        documentPath,
+      }
+      if (sender) body.sender = sender
+      if (notes) body.notes = notes
       if (payeurSelect) {
         const [kind, id] = payeurSelect.split(':')
-        if (kind === 'client') fd.append('clientId', id)
-        else if (kind === 'enterprise') fd.append('enterpriseId', id)
+        if (kind === 'client') body.clientId = id
+        else if (kind === 'enterprise') body.enterpriseId = id
       }
-      fd.append('type', type)
-      if (notes) fd.append('notes', notes)
-      fd.append('status', 'RECEIVED')
-      if (docFile) fd.append('document', docFile)
-      fd.append('notifyClient', String(notifyClient))
 
-      const res = await fetch('/api/mails', { method: 'POST', body: fd })
+      const res = await fetch('/api/mails', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
       if (!res.ok) {
         const d = await res.json().catch(() => ({}))
         const msg =
-          res.status === 413 ? 'Fichier trop volumineux (max 4 Mo)'
-          : d.details?.[0]?.message ? `${d.error} : ${d.details[0].message}`
+          d.details?.[0]?.message ? `${d.error} : ${d.details[0].message}`
           : d.error || `Erreur lors de l’enregistrement (${res.status})`
         toast.error(msg)
         return
@@ -260,7 +275,7 @@ export default function NewMailPage() {
                 <label className="flex flex-col items-center justify-center gap-2 p-5 rounded-lg border-2 border-dashed border-gray-300 hover:border-gold-400 hover:bg-gold-50/30 cursor-pointer transition-colors">
                   <Paperclip className="h-6 w-6 text-gray-400" />
                   <span className="text-sm text-gray-600">Cliquer pour ajouter un document</span>
-                  <span className="text-xs text-gray-400">PDF, Word (DOC/DOCX), Excel, JPG, PNG — max 4 Mo</span>
+                  <span className="text-xs text-gray-400">PDF, Word (DOC/DOCX), Excel, JPG, PNG — max 20 Mo</span>
                   <input
                     type="file"
                     accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/jpeg,image/png,image/webp"

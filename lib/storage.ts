@@ -143,3 +143,64 @@ export async function deletePdf(path: string): Promise<void> {
   const { error } = await supabase.storage.from(BUCKET).remove([path])
   if (error && !/not found/i.test(error.message)) throw error
 }
+
+// ============================================================
+// Upload direct navigateur -> Supabase (contourne la limite de
+// ~4,5 Mo par requete des fonctions Vercel)
+// ============================================================
+
+/** Taille max d'un document (alignee sur fileSizeLimit du bucket). */
+export const MAX_DOC_BYTES = 20 * 1024 * 1024
+
+// Certains navigateurs envoient un type MIME vide ou generique : on le
+// deduit alors de l'extension pour ne pas rejeter un fichier valide.
+const MIME_BY_EXT: Record<string, string> = {
+  '.pdf': 'application/pdf',
+  '.doc': 'application/msword',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.xls': 'application/vnd.ms-excel',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+  '.heic': 'image/heic',
+}
+
+export function resolveMime(filename: string, declared: string | null | undefined): string {
+  if (declared && ALLOWED_DOC_MIME.includes(declared)) return declared
+  return MIME_BY_EXT[extFromFilename(filename)] ?? (declared || '')
+}
+
+/**
+ * Cree une URL d'upload signee (usage unique, ~2h) pour `path`.
+ * Le navigateur fait ensuite un PUT du fichier directement sur cette URL.
+ */
+export async function createUploadUrl(path: string): Promise<string> {
+  await ensureBucket()
+  const supabase = getSupabase()
+  const { data, error } = await supabase.storage.from(BUCKET).createSignedUploadUrl(path)
+  if (error || !data) throw error ?? new Error('Failed to create upload URL')
+  return data.signedUrl
+}
+
+/** Verifie qu'un objet existe bien dans le bucket (apres upload direct). */
+export async function objectExists(path: string): Promise<boolean> {
+  const i = path.lastIndexOf('/')
+  const dir = path.slice(0, i)
+  const name = path.slice(i + 1)
+  const supabase = getSupabase()
+  const { data, error } = await supabase.storage.from(BUCKET).list(dir, { search: name, limit: 10 })
+  if (error) return false
+  return (data ?? []).some(o => o.name === name)
+}
+
+/** Chemin "sur" : segments alphanumeriques, pas de '..' ni de '//'. */
+export function isSafeStoragePath(path: string, prefix: string): boolean {
+  return (
+    path.startsWith(prefix) &&
+    /^[A-Za-z0-9/_.-]+$/.test(path) &&
+    !path.includes('..') &&
+    !path.includes('//')
+  )
+}

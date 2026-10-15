@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuth, requireRole, scopeByCenter } from '@/lib/api-auth'
-import { uploadDocument, extFromFilename, ALLOWED_DOC_MIME } from '@/lib/storage'
+import { objectExists, isSafeStoragePath, deletePdf } from '@/lib/storage'
 import { sendEmail, newMailEmail } from '@/lib/email'
 import { z } from 'zod'
 
@@ -17,26 +17,9 @@ const mailSchema = z.object({
   type: z.enum(['STANDARD', 'RECOMMANDE', 'COLIS', 'OFFICIEL']).default('STANDARD'),
   notes: z.string().optional(),
   notifyClient: z.boolean().default(true),
+  // Chemin du document deja uploade en direct sur Supabase (/api/uploads/sign)
+  documentPath: z.string().max(500).optional(),
 })
-
-// Certains navigateurs envoient un file.type vide (ou generique) : on le
-// deduit alors de l'extension pour ne pas rejeter un fichier valide.
-const MIME_BY_EXT: Record<string, string> = {
-  '.pdf': 'application/pdf',
-  '.doc': 'application/msword',
-  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  '.xls': 'application/vnd.ms-excel',
-  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.png': 'image/png',
-  '.webp': 'image/webp',
-  '.heic': 'image/heic',
-}
-function resolveMime(file: File): string {
-  if (ALLOWED_DOC_MIME.includes(file.type)) return file.type
-  return MIME_BY_EXT[extFromFilename(file.name).toLowerCase()] ?? file.type
-}
 
 export async function GET(request: NextRequest) {
   const { error, session } = await requireAuth()
@@ -78,36 +61,7 @@ export async function POST(request: NextRequest) {
   if (error) return error
 
   try {
-    // Detecte multipart (avec document) vs JSON (sans)
-    const contentType = request.headers.get('content-type') || ''
-    let rawData: any
-    let file: File | null = null
-
-    if (contentType.includes('multipart/form-data')) {
-      const formData = await request.formData()
-      const v = (k: string): any => {
-        const raw = formData.get(k)
-        if (raw === null || (typeof raw === 'string' && raw.trim() === '')) return undefined
-        return raw
-      }
-      rawData = {
-        recipient: v('recipient'),
-        sender: v('sender'),
-        enterpriseId: v('enterpriseId'),
-        clientId: v('clientId'),
-        centerId: v('centerId'),
-        status: v('status') ?? 'RECEIVED',
-        type: v('type') ?? 'STANDARD',
-        notes: v('notes'),
-        notifyClient: v('notifyClient') !== 'false',
-      }
-      const f = formData.get('document')
-      if (f instanceof File && f.size > 0) file = f
-    } else {
-      rawData = await request.json()
-    }
-
-    const data = mailSchema.parse(rawData)
+    const data = mailSchema.parse(await request.json())
 
     if (session!.user.role === 'MANAGER' && data.centerId !== session!.user.centerId) {
       return NextResponse.json({ error: 'Cannot create in another center' }, { status: 403 })
@@ -127,50 +81,40 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Client d’un autre centre' }, { status: 403 })
     }
 
-    // Cree le mail (sans pdfPath d'abord, pour avoir l'ID)
-    const mail = await prisma.mail.create({
-      data: {
-        recipient: data.recipient,
-        sender: data.sender || null,
-        enterpriseId: data.enterpriseId || null,
-        clientId: data.clientId || null,
-        centerId: data.centerId,
-        status: data.status,
-        type: data.type,
-        notes: data.notes || null,
-      },
-      include: { enterprise: { select: { id: true, name: true } } },
-    })
-
-    // Upload du document si fourni
+    // Document : uploade en direct par le navigateur. On verifie que le
+    // chemin appartient bien au centre (impose par /api/uploads/sign) et
+    // que le fichier existe reellement dans le bucket.
     let pdfPath: string | null = null
-    if (file) {
-      const mime = resolveMime(file)
-      if (!ALLOWED_DOC_MIME.includes(mime)) {
-        await prisma.mail.delete({ where: { id: mail.id } })
-        return NextResponse.json(
-          { error: 'Type de fichier non supporté (PDF, DOC/DOCX, XLS/XLSX, JPG, PNG acceptés)' },
-          { status: 400 }
-        )
+    if (data.documentPath) {
+      if (!isSafeStoragePath(data.documentPath, `mails/${data.centerId}/`)) {
+        return NextResponse.json({ error: 'Chemin de document invalide' }, { status: 400 })
       }
-      if (file.size > 20 * 1024 * 1024) {
-        await prisma.mail.delete({ where: { id: mail.id } })
-        return NextResponse.json({ error: 'Fichier trop volumineux (max 20 Mo)' }, { status: 400 })
+      if (!(await objectExists(data.documentPath))) {
+        return NextResponse.json({ error: 'Document introuvable dans le stockage, réessayez l’upload' }, { status: 400 })
       }
-      const buffer = Buffer.from(await file.arrayBuffer())
-      const ext = extFromFilename(file.name)
-      pdfPath = `mails/${mail.centerId}/${mail.id}${ext}`
-      try {
-        await uploadDocument(pdfPath, buffer, mime)
-        await prisma.mail.update({ where: { id: mail.id }, data: { pdfPath } })
-      } catch (uploadErr: any) {
-        await prisma.mail.delete({ where: { id: mail.id } })
-        console.error('[mails POST] upload failed:', uploadErr)
-        return NextResponse.json(
-          { error: `Upload du document échoué : ${uploadErr.message ?? 'inconnu'}` },
-          { status: 500 }
-        )
-      }
+      pdfPath = data.documentPath
+    }
+
+    let mail
+    try {
+      mail = await prisma.mail.create({
+        data: {
+          recipient: data.recipient,
+          sender: data.sender || null,
+          enterpriseId: data.enterpriseId || null,
+          clientId: data.clientId || null,
+          centerId: data.centerId,
+          status: data.status,
+          type: data.type,
+          notes: data.notes || null,
+          pdfPath,
+        },
+        include: { enterprise: { select: { id: true, name: true } } },
+      })
+    } catch (e) {
+      // Evite un fichier orphelin si la creation echoue
+      if (pdfPath) await deletePdf(pdfPath).catch(() => {})
+      throw e
     }
 
     // Notification email au client (best-effort : le courrier reste cree)
@@ -196,7 +140,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ ...mail, pdfPath, emailSent }, { status: 201 })
+    return NextResponse.json({ ...mail, emailSent }, { status: 201 })
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json({ error: 'Validation failed', details: err.errors }, { status: 400 })

@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { requireRole } from '@/lib/api-auth'
 import { checkRateLimit } from '@/lib/api-rate-limit'
 import { audit } from '@/lib/audit'
-import { uploadPdf, signedUrl as makeSignedUrl } from '@/lib/storage'
+import { signedUrl as makeSignedUrl, objectExists, isSafeStoragePath, deletePdf } from '@/lib/storage'
 import { sendEmail, newMailEmail } from '@/lib/email'
 
 export const maxDuration = 30
@@ -95,13 +95,23 @@ export async function POST(
     const notes = typeof notesRaw === 'string' && notesRaw.trim() ? notesRaw.trim() : null
     // Notify par defaut, sauf si l'admin a explicitement decoche
     const notifyClient = notifyClientRaw !== 'false' && notifyClientRaw !== '0'
-    const file = formData.get('pdf')
+    // PDF deja uploade en direct sur Supabase (/api/uploads/sign)
+    const pdfPathRaw = formData.get('pdfPath')
+    const pdfPath = typeof pdfPathRaw === 'string' && pdfPathRaw ? pdfPathRaw : null
 
     if (!VALID_TYPES.includes(type as any)) {
       return NextResponse.json({ error: 'Type invalide' }, { status: 400 })
     }
 
-    // Crée le mail SANS le pdfPath (pour avoir l'ID)
+    if (pdfPath) {
+      if (!isSafeStoragePath(pdfPath, `clients/${client.id}/mails/`) || !pdfPath.endsWith('.pdf')) {
+        return NextResponse.json({ error: 'Chemin de PDF invalide' }, { status: 400 })
+      }
+      if (!(await objectExists(pdfPath))) {
+        return NextResponse.json({ error: 'PDF introuvable dans le stockage, réessayez l’upload' }, { status: 400 })
+      }
+    }
+
     const mail = await prisma.mail.create({
       data: {
         recipient: `${client.prenom} ${client.nom}`,
@@ -110,34 +120,12 @@ export async function POST(
         centerId: client.centerId,
         type,
         notes,
+        pdfPath,
       },
+    }).catch(async e => {
+      if (pdfPath) await deletePdf(pdfPath).catch(() => {})
+      throw e
     })
-
-    // Si un PDF est joint, l'uploader et mettre à jour pdfPath
-    let pdfPath: string | null = null
-    if (file instanceof File && file.size > 0) {
-      if (file.type !== 'application/pdf') {
-        await prisma.mail.delete({ where: { id: mail.id } })
-        return NextResponse.json({ error: 'Le fichier doit être un PDF' }, { status: 400 })
-      }
-      if (file.size > 20 * 1024 * 1024) {
-        await prisma.mail.delete({ where: { id: mail.id } })
-        return NextResponse.json({ error: 'PDF trop volumineux (max 20 Mo)' }, { status: 400 })
-      }
-      const buffer = Buffer.from(await file.arrayBuffer())
-      pdfPath = `clients/${client.id}/mails/${mail.id}.pdf`
-      try {
-        await uploadPdf(pdfPath, buffer)
-        await prisma.mail.update({ where: { id: mail.id }, data: { pdfPath } })
-      } catch (uploadErr: any) {
-        await prisma.mail.delete({ where: { id: mail.id } })
-        console.error('[courriers POST] upload failed:', uploadErr)
-        return NextResponse.json(
-          { error: `Upload PDF échoué : ${uploadErr.message ?? 'inconnu'}` },
-          { status: 500 }
-        )
-      }
-    }
 
     // === Notification email au client ===
     // Best-effort : si l'envoi echoue, on continue (le courrier est cree).
@@ -176,7 +164,7 @@ export async function POST(
 
     return NextResponse.json({
       ok: true,
-      mail: { ...mail, pdfPath },
+      mail,
       emailSent,
       emailError,
       notified: notifyClient,

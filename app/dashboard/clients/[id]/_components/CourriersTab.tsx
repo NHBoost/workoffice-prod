@@ -5,6 +5,7 @@ import {
   Mail, Plus, Upload, X, Loader2, Eye, CheckCircle2, Inbox,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { directUpload } from '@/lib/direct-upload'
 import { Card, Badge, EmptyState, Spinner, Modal } from '@/components/ui'
 import { cn } from '@/lib/utils'
 
@@ -78,9 +79,8 @@ export function CourriersTab({ clientId }: { clientId: string }) {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    // Limite de taille d'une requete sur Vercel (~4,5 Mo)
-    if (pdfFile && pdfFile.size > 4 * 1024 * 1024) {
-      toast.error('PDF trop volumineux (max 4 Mo). Compressez le scan.')
+    if (pdfFile && pdfFile.size > 20 * 1024 * 1024) {
+      toast.error('PDF trop volumineux (max 20 Mo)')
       return
     }
     setSubmitting(true)
@@ -89,13 +89,21 @@ export function CourriersTab({ clientId }: { clientId: string }) {
       if (sender) fd.append('sender', sender)
       fd.append('type', type)
       if (notes) fd.append('notes', notes)
-      if (pdfFile) fd.append('pdf', pdfFile)
+      // Upload direct du PDF vers Supabase (pas de limite Vercel)
+      if (pdfFile) {
+        try {
+          fd.append('pdfPath', await directUpload(pdfFile, { purpose: 'client-mail', clientId }))
+        } catch (err: any) {
+          toast.error(err.message || 'Upload du PDF échoué')
+          return
+        }
+      }
       fd.append('notifyClient', notifyClient ? 'true' : 'false')
 
       const res = await fetch(`/api/clients/${clientId}/courriers`, { method: 'POST', body: fd })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) {
-        toast.error(res.status === 413 ? 'PDF trop volumineux (max 4 Mo)' : body.error || `Erreur (${res.status})`)
+        toast.error(body.error || `Erreur (${res.status})`)
         return
       }
       // Message contextuel selon le succes de la notif email

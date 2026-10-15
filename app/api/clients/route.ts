@@ -10,7 +10,8 @@ import { z } from 'zod'
 
 const listQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(20),
+  // 500 : les formulaires (courrier, facture, mailing) chargent la liste complete
+  limit: z.coerce.number().int().min(1).max(500).default(20),
   search: z.string().trim().max(200).optional().default(''),
   centerId: z.string().trim().optional(),
   compteStatut: z.enum(['NON_CREE', 'CREE', 'CONNECTE']).optional(),
