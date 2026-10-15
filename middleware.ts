@@ -74,7 +74,10 @@ export default withAuth(
     if (role === 'ADMIN') return NextResponse.next()
 
     // Routes Admin uniquement (MANAGER bloqué ici)
-    if (startsWithAny(pathname, ADMIN_ONLY_ROUTES)) {
+    // Exception : MANAGER peut LIRE la liste des centres (GET /api/centers),
+    // necessaire aux formulaires (courrier...). L'API la restreint a son centre.
+    const isCentersRead = pathname === '/api/centers' && req.method === 'GET'
+    if (!isCentersRead && startsWithAny(pathname, ADMIN_ONLY_ROUTES)) {
       if (pathname.startsWith('/api/')) {
         return NextResponse.json({ error: 'Forbidden — admin only' }, { status: 403 })
       }

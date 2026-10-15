@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuth, requireRole, scopeByCenter } from '@/lib/api-auth'
 import { uploadDocument, extFromFilename, ALLOWED_DOC_MIME } from '@/lib/storage'
+import { sendEmail, newMailEmail } from '@/lib/email'
 import { z } from 'zod'
 
 export const maxDuration = 30
@@ -15,7 +16,27 @@ const mailSchema = z.object({
   status: z.enum(['RECEIVED', 'COLLECTED', 'RETURNED']).default('RECEIVED'),
   type: z.enum(['STANDARD', 'RECOMMANDE', 'COLIS', 'OFFICIEL']).default('STANDARD'),
   notes: z.string().optional(),
+  notifyClient: z.boolean().default(true),
 })
+
+// Certains navigateurs envoient un file.type vide (ou generique) : on le
+// deduit alors de l'extension pour ne pas rejeter un fichier valide.
+const MIME_BY_EXT: Record<string, string> = {
+  '.pdf': 'application/pdf',
+  '.doc': 'application/msword',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.xls': 'application/vnd.ms-excel',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+  '.heic': 'image/heic',
+}
+function resolveMime(file: File): string {
+  if (ALLOWED_DOC_MIME.includes(file.type)) return file.type
+  return MIME_BY_EXT[extFromFilename(file.name).toLowerCase()] ?? file.type
+}
 
 export async function GET(request: NextRequest) {
   const { error, session } = await requireAuth()
@@ -45,7 +66,7 @@ export async function GET(request: NextRequest) {
       take: 200,
     })
 
-    return NextResponse.json({ mails, total: mails.length }, { headers: { "Cache-Control": "private, max-age=30, stale-while-revalidate=120" } })
+    return NextResponse.json({ mails, total: mails.length }, { headers: { "Cache-Control": "private, no-store" } })
   } catch (err) {
     console.error('Error fetching mails:', err)
     return NextResponse.json({ error: 'Failed to fetch mails' }, { status: 500 })
@@ -78,6 +99,7 @@ export async function POST(request: NextRequest) {
         status: v('status') ?? 'RECEIVED',
         type: v('type') ?? 'STANDARD',
         notes: v('notes'),
+        notifyClient: v('notifyClient') !== 'false',
       }
       const f = formData.get('document')
       if (f instanceof File && f.size > 0) file = f
@@ -89,6 +111,20 @@ export async function POST(request: NextRequest) {
 
     if (session!.user.role === 'MANAGER' && data.centerId !== session!.user.centerId) {
       return NextResponse.json({ error: 'Cannot create in another center' }, { status: 403 })
+    }
+
+    // Verifie le client (existence + meme centre pour un MANAGER)
+    const client = data.clientId
+      ? await prisma.client.findUnique({
+          where: { id: data.clientId },
+          select: { id: true, prenom: true, emailPerso: true, centerId: true },
+        })
+      : null
+    if (data.clientId && !client) {
+      return NextResponse.json({ error: 'Client introuvable' }, { status: 404 })
+    }
+    if (client && session!.user.role === 'MANAGER' && client.centerId !== session!.user.centerId) {
+      return NextResponse.json({ error: 'Client d’un autre centre' }, { status: 403 })
     }
 
     // Cree le mail (sans pdfPath d'abord, pour avoir l'ID)
@@ -109,7 +145,8 @@ export async function POST(request: NextRequest) {
     // Upload du document si fourni
     let pdfPath: string | null = null
     if (file) {
-      if (!ALLOWED_DOC_MIME.includes(file.type)) {
+      const mime = resolveMime(file)
+      if (!ALLOWED_DOC_MIME.includes(mime)) {
         await prisma.mail.delete({ where: { id: mail.id } })
         return NextResponse.json(
           { error: 'Type de fichier non supporté (PDF, DOC/DOCX, XLS/XLSX, JPG, PNG acceptés)' },
@@ -124,7 +161,7 @@ export async function POST(request: NextRequest) {
       const ext = extFromFilename(file.name)
       pdfPath = `mails/${mail.centerId}/${mail.id}${ext}`
       try {
-        await uploadDocument(pdfPath, buffer, file.type)
+        await uploadDocument(pdfPath, buffer, mime)
         await prisma.mail.update({ where: { id: mail.id }, data: { pdfPath } })
       } catch (uploadErr: any) {
         await prisma.mail.delete({ where: { id: mail.id } })
@@ -136,7 +173,30 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ ...mail, pdfPath }, { status: 201 })
+    // Notification email au client (best-effort : le courrier reste cree)
+    let emailSent = false
+    if (client && data.notifyClient && client.emailPerso) {
+      try {
+        const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
+        const tpl = newMailEmail({
+          prenom: client.prenom,
+          type: data.type,
+          sender: data.sender ?? null,
+          portalUrl: `${baseUrl}/portail`,
+        })
+        const result = await sendEmail({
+          to: client.emailPerso,
+          subject: tpl.subject,
+          html: tpl.html,
+          text: tpl.text,
+        })
+        emailSent = result.ok && result.id !== 'dev-mode'
+      } catch (e) {
+        console.error('[mails POST] notification failed:', e)
+      }
+    }
+
+    return NextResponse.json({ ...mail, pdfPath, emailSent }, { status: 201 })
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json({ error: 'Validation failed', details: err.errors }, { status: 400 })

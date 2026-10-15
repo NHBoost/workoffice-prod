@@ -13,6 +13,8 @@ const TYPE_OPTIONS = [
   { value: 'OFFICIEL', label: 'Officiel' },
 ]
 
+const MAX_UPLOAD_BYTES = 4 * 1024 * 1024
+
 // Un payeur (Enterprise ou Client) uniformisé pour le dropdown
 interface Payeur { id: string; label: string; kind: 'enterprise' | 'client' }
 
@@ -30,39 +32,54 @@ export default function NewMailPage() {
   const [type, setType] = useState('STANDARD')
   const [notes, setNotes] = useState('')
   const [docFile, setDocFile] = useState<File | null>(null)
+  const [notifyClient, setNotifyClient] = useState(true)
 
   useEffect(() => {
     // Fetch centres + entreprises + clients en parallele.
     // Les clients sont maintenant la source principale (Etape 1 du CDC),
     // mais on garde les entreprises pour la retrocompatibilite.
+    // Chargements independants (un echec n'empeche pas les autres) et sans
+    // cache navigateur (sinon un centre supprime peut rester proposé).
+    const get = (url: string, fallback: any) =>
+      fetch(url, { cache: 'no-store' })
+        .then(r => (r.ok ? r.json() : fallback))
+        .catch(() => fallback)
     Promise.all([
-      fetch('/api/centers').then(r => (r.ok ? r.json() : Promise.reject(r))),
-      fetch('/api/enterprises?limit=200').then(r => (r.ok ? r.json() : Promise.reject(r))).catch(() => ({ enterprises: [] })),
-      fetch('/api/clients?limit=200').then(r => (r.ok ? r.json() : Promise.reject(r))).catch(() => ({ clients: [] })),
-    ])
-      .then(([c, e, cl]) => {
-        const cs = (c.centers || []).map((x: any) => ({ id: x.id, name: x.name }))
-        const clients: Payeur[] = (cl.clients || []).map((x: any) => ({
-          id: x.id,
-          label: `${x.societeDenomination} (${x.prenom} ${x.nom})`,
-          kind: 'client' as const,
-        }))
-        const enterprises: Payeur[] = (e.enterprises || []).map((x: any) => ({
-          id: x.id,
-          label: x.name,
-          kind: 'enterprise' as const,
-        }))
-        setCenters(cs)
-        // Clients en premier (nouveau) + entreprises apres (legacy)
-        setPayeurs([...clients, ...enterprises])
-        if (cs.length && !centerId) setCenterId(cs[0].id)
-      })
-      .catch(() => toast.error('Impossible de charger les données'))
+      get('/api/centers', { centers: [] }),
+      get('/api/enterprises?limit=200', { enterprises: [] }),
+      get('/api/clients?limit=200', { clients: [] }),
+    ]).then(([c, e, cl]) => {
+      const cs = (c.centers || []).map((x: any) => ({ id: x.id, name: x.name }))
+      const clients: Payeur[] = (cl.clients || []).map((x: any) => ({
+        id: x.id,
+        label: `${x.societeDenomination} (${x.prenom} ${x.nom})`,
+        kind: 'client' as const,
+      }))
+      const enterprises: Payeur[] = (e.enterprises || []).map((x: any) => ({
+        id: x.id,
+        label: x.name,
+        kind: 'enterprise' as const,
+      }))
+      setCenters(cs)
+      // Clients en premier (nouveau) + entreprises apres (legacy)
+      setPayeurs([...clients, ...enterprises])
+      if (cs.length) setCenterId(cs[0].id)
+      else toast.error('Aucun centre disponible pour votre compte')
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
+    if (!centerId) {
+      toast.error('Sélectionnez un centre')
+      return
+    }
+    // Limite de taille d'une requete sur Vercel (~4,5 Mo)
+    if (docFile && docFile.size > MAX_UPLOAD_BYTES) {
+      toast.error('Fichier trop volumineux (max 4 Mo). Compressez le scan ou réduisez sa résolution.')
+      return
+    }
     setSubmitting(true)
     try {
       // FormData (multipart) pour permettre l'upload du document
@@ -80,14 +97,23 @@ export default function NewMailPage() {
       if (notes) fd.append('notes', notes)
       fd.append('status', 'RECEIVED')
       if (docFile) fd.append('document', docFile)
+      fd.append('notifyClient', String(notifyClient))
 
       const res = await fetch('/api/mails', { method: 'POST', body: fd })
       if (!res.ok) {
         const d = await res.json().catch(() => ({}))
-        toast.error(d.error || 'Erreur lors de l’enregistrement')
+        const msg =
+          res.status === 413 ? 'Fichier trop volumineux (max 4 Mo)'
+          : d.details?.[0]?.message ? `${d.error} : ${d.details[0].message}`
+          : d.error || `Erreur lors de l’enregistrement (${res.status})`
+        toast.error(msg)
         return
       }
-      toast.success(docFile ? 'Courrier enregistré avec document' : 'Courrier enregistré')
+      const created = await res.json().catch(() => ({}))
+      toast.success(
+        (docFile ? 'Courrier enregistré avec document' : 'Courrier enregistré') +
+        (created.emailSent ? ' — client notifié par email' : '')
+      )
       router.push('/dashboard/courriers')
       router.refresh()
     } catch {
@@ -172,6 +198,17 @@ export default function NewMailPage() {
                 )}
               </select>
             </div>
+            {payeurSelect.startsWith('client:') && (
+              <label className="sm:col-span-2 flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={notifyClient}
+                  onChange={e => setNotifyClient(e.target.checked)}
+                  className="rounded border-gray-300"
+                />
+                Notifier le client par email (courrier visible sur son portail)
+              </label>
+            )}
             <div>
               <label className="form-label">Type de courrier</label>
               <select
@@ -223,7 +260,7 @@ export default function NewMailPage() {
                 <label className="flex flex-col items-center justify-center gap-2 p-5 rounded-lg border-2 border-dashed border-gray-300 hover:border-gold-400 hover:bg-gold-50/30 cursor-pointer transition-colors">
                   <Paperclip className="h-6 w-6 text-gray-400" />
                   <span className="text-sm text-gray-600">Cliquer pour ajouter un document</span>
-                  <span className="text-xs text-gray-400">PDF, Word (DOC/DOCX), Excel, JPG, PNG — max 20 Mo</span>
+                  <span className="text-xs text-gray-400">PDF, Word (DOC/DOCX), Excel, JPG, PNG — max 4 Mo</span>
                   <input
                     type="file"
                     accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/jpeg,image/png,image/webp"

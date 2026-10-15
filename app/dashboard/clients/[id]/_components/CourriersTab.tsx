@@ -78,6 +78,11 @@ export function CourriersTab({ clientId }: { clientId: string }) {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
+    // Limite de taille d'une requete sur Vercel (~4,5 Mo)
+    if (pdfFile && pdfFile.size > 4 * 1024 * 1024) {
+      toast.error('PDF trop volumineux (max 4 Mo). Compressez le scan.')
+      return
+    }
     setSubmitting(true)
     try {
       const fd = new FormData()
@@ -90,7 +95,7 @@ export function CourriersTab({ clientId }: { clientId: string }) {
       const res = await fetch(`/api/clients/${clientId}/courriers`, { method: 'POST', body: fd })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) {
-        toast.error(body.error || 'Erreur')
+        toast.error(res.status === 413 ? 'PDF trop volumineux (max 4 Mo)' : body.error || `Erreur (${res.status})`)
         return
       }
       // Message contextuel selon le succes de la notif email

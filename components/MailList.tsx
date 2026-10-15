@@ -45,7 +45,7 @@ export default function MailList({ forcedStatus, title, description }: Props) {
     const eff = forcedStatus || statusFilter
     if (eff !== 'all') params.set('status', eff)
     setLoading(true)
-    fetch(`/api/mails?${params.toString()}`)
+    fetch(`/api/mails?${params.toString()}`, { cache: 'no-store' })
       .then(r => (r.ok ? r.json() : Promise.reject(r)))
       .then(d => setMails(d.mails || []))
       .catch(() => toast.error('Erreur de chargement'))

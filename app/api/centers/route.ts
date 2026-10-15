@@ -18,7 +18,7 @@ const centerSchema = z.object({
 })
 
 export async function GET(request: NextRequest) {
-  const { error } = await requireAuth()
+  const { error, session } = await requireAuth()
   if (error) return error
 
   const querySchema = z.object({
@@ -31,6 +31,8 @@ export async function GET(request: NextRequest) {
   try {
 
     const where: any = {}
+    // Non-admin : uniquement son propre centre
+    if (session!.user.role !== 'ADMIN') where.id = session!.user.centerId ?? '__none__'
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
@@ -53,7 +55,7 @@ export async function GET(request: NextRequest) {
       orderBy: { name: 'asc' },
     })
 
-    return NextResponse.json({ centers, total: centers.length }, { headers: { "Cache-Control": "private, max-age=30, stale-while-revalidate=120" } })
+    return NextResponse.json({ centers, total: centers.length }, { headers: { "Cache-Control": "private, no-store" } })
   } catch (err) {
     console.error('Error fetching centers:', err)
     return NextResponse.json({ error: 'Failed to fetch centers' }, { status: 500 })
