@@ -1,28 +1,12 @@
 import './globals.css'
-import { Inter, JetBrains_Mono, Playfair_Display } from 'next/font/google'
+// Polices auto-hebergees (paquets npm @fontsource) : aucun telechargement
+// depuis Google Fonts pendant le build, qui echouait parfois sur Vercel.
+// Les variables --font-sans / --font-mono / --font-serif sont dans globals.css.
+import '@fontsource-variable/inter'
+import '@fontsource-variable/jetbrains-mono'
+import '@fontsource-variable/playfair-display'
 import { Providers } from './providers'
 import { Toaster } from 'react-hot-toast'
-
-const inter = Inter({
-  subsets: ['latin'],
-  display: 'swap',
-  variable: '--font-sans',
-  weight: ['400', '500', '600', '700'],
-})
-
-const mono = JetBrains_Mono({
-  subsets: ['latin'],
-  display: 'swap',
-  variable: '--font-mono',
-  weight: ['400', '500', '600'],
-})
-
-const serif = Playfair_Display({
-  subsets: ['latin'],
-  display: 'swap',
-  variable: '--font-serif',
-  weight: ['500', '600', '700'],
-})
 
 export const metadata = {
   title: 'Prestigia Business Center — Plateforme de gestion',
@@ -35,7 +19,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="fr" suppressHydrationWarning className={`${inter.variable} ${mono.variable} ${serif.variable}`}>
+    <html lang="fr" suppressHydrationWarning>
       <body className="font-sans antialiased min-h-screen bg-bg text-text" suppressHydrationWarning>
         <Providers>
           {children}

@@ -8,6 +8,11 @@
 
 @layer base {
   :root {
+    /* Polices (auto-hebergees via @fontsource, importees dans app/layout.tsx) */
+    --font-sans:  'Inter Variable', system-ui, sans-serif;
+    --font-mono:  'JetBrains Mono Variable', ui-monospace, monospace;
+    --font-serif: 'Playfair Display Variable', Georgia, serif;
+
     /* Surfaces */
     --bg:           250 250 249;   /* pearl */
     --surface:      255 255 255;   /* pure white */
