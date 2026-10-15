@@ -14,14 +14,24 @@ import { z } from 'zod'
 
 const schema = z.object({
   // 'mail'        : courrier cree depuis /dashboard/courriers/nouveau
-  // 'client-mail' : courrier attribue depuis la fiche client (PDF uniquement)
-  purpose: z.enum(['mail', 'client-mail']),
+  // Fiche client (PDF uniquement) :
+  //   'client-mail'     : courrier attribue
+  //   'client-invoice'  : facture
+  //   'client-contract' : contrat signe
+  purpose: z.enum(['mail', 'client-mail', 'client-invoice', 'client-contract']),
   filename: z.string().min(1).max(255),
   mime: z.string().max(200).optional(),
   size: z.number().int().positive(),
   centerId: z.string().optional(),
   clientId: z.string().optional(),
 })
+
+// Sous-dossier du client selon l'usage (verifie ensuite par l'API de creation)
+const CLIENT_DIRS = {
+  'client-mail': 'mails',
+  'client-invoice': 'invoices',
+  'client-contract': 'contracts',
+} as const
 
 /**
  * POST /api/uploads/sign
@@ -72,7 +82,7 @@ export async function POST(request: NextRequest) {
       if (mime !== 'application/pdf') {
         return NextResponse.json({ error: 'Le fichier doit être un PDF' }, { status: 400 })
       }
-      path = `clients/${client.id}/mails/${randomUUID()}.pdf`
+      path = `clients/${client.id}/${CLIENT_DIRS[data.purpose]}/${randomUUID()}.pdf`
     }
 
     const signedUrl = await createUploadUrl(path)

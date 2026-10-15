@@ -204,3 +204,22 @@ export function isSafeStoragePath(path: string, prefix: string): boolean {
     !path.includes('//')
   )
 }
+
+/**
+ * Valide un PDF uploade en direct pour un client : chemin dans le bon
+ * sous-dossier (impose par /api/uploads/sign) et fichier present.
+ * Retourne un message d'erreur, ou null si tout est bon.
+ */
+export async function checkClientUpload(
+  path: string,
+  clientId: string,
+  dir: 'mails' | 'invoices' | 'contracts'
+): Promise<string | null> {
+  if (!isSafeStoragePath(path, `clients/${clientId}/${dir}/`) || !path.endsWith('.pdf')) {
+    return 'Chemin de PDF invalide'
+  }
+  if (!(await objectExists(path))) {
+    return 'PDF introuvable dans le stockage, réessayez l’upload'
+  }
+  return null
+}

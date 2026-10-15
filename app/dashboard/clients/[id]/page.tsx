@@ -10,6 +10,7 @@ import {
   Clock, Loader2, ExternalLink, Inbox, Receipt,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { directUpload } from '@/lib/direct-upload'
 import { Card, Badge, Spinner, EmptyState, ConfirmDialog } from '@/components/ui'
 import { cn, formatCurrency } from '@/lib/utils'
 import { FORMULE_LABELS, PERIODICITE_LABELS, type Formule, type Periodicite } from '@/lib/client-schemas'
@@ -168,13 +169,19 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
       if (!file) return
       setBusy('upload')
       try {
-        const fd = new FormData()
-        fd.append('pdf', file)
-        const res = await fetch(`/api/clients/${params.id}/contrat/signed`, { method: 'POST', body: fd })
+        // Upload direct du PDF vers Supabase, puis enregistrement du chemin
+        const pdfPath = await directUpload(file, { purpose: 'client-contract', clientId: params.id })
+        const res = await fetch(`/api/clients/${params.id}/contrat/signed`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pdfPath }),
+        })
         const body = await res.json().catch(() => ({}))
         if (!res.ok) { toast.error(body.error || 'Upload échoué'); return }
         toast.success('Contrat signé téléversé')
         fetchClient()
+      } catch (err: any) {
+        toast.error(err.message || 'Upload échoué')
       } finally { setBusy(null) }
     }
     input.click()

@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { requireRole } from '@/lib/api-auth'
 import { checkRateLimit } from '@/lib/api-rate-limit'
 import { audit } from '@/lib/audit'
-import { uploadPdf, signedUrl as makeSignedUrl } from '@/lib/storage'
+import { signedUrl as makeSignedUrl, checkClientUpload, deletePdf } from '@/lib/storage'
 import { sendEmail, newInvoiceEmail } from '@/lib/email'
 import { z } from 'zod'
 
@@ -98,7 +98,8 @@ export async function POST(
     // Detecte multipart vs JSON
     const contentType = request.headers.get('content-type') || ''
     let rawData: any
-    let file: File | null = null
+    // PDF deja uploade en direct sur Supabase (/api/uploads/sign)
+    let pdfPath: string | null = null
     let notifyClient = true // default ON
 
     if (contentType.includes('multipart/form-data')) {
@@ -121,13 +122,14 @@ export async function POST(
         status: v('status') ?? 'PENDING',
         notes: v('notes'),
       }
-      const f = formData.get('pdf')
-      if (f instanceof File && f.size > 0) file = f
+      const p = v('pdfPath')
+      if (typeof p === 'string') pdfPath = p
       const notifyRaw = formData.get('notifyClient')
       notifyClient = notifyRaw !== 'false' && notifyRaw !== '0'
     } else {
       rawData = await request.json()
       if (rawData?.notifyClient === false) notifyClient = false
+      if (typeof rawData?.pdfPath === 'string' && rawData.pdfPath) pdfPath = rawData.pdfPath
     }
 
     const data = createInvoiceSchema.parse(rawData)
@@ -146,6 +148,11 @@ export async function POST(
       )
     }
 
+    if (pdfPath) {
+      const uploadError = await checkClientUpload(pdfPath, client.id, 'invoices')
+      if (uploadError) return NextResponse.json({ error: uploadError }, { status: 400 })
+    }
+
     const invoice = await prisma.invoice.create({
       data: {
         number: data.number,
@@ -156,33 +163,13 @@ export async function POST(
         dueDate: data.dueDate,
         status: data.status,
         paidAt: data.status === 'PAID' ? new Date() : null,
+        pdfPath,
       },
+    }).catch(async e => {
+      // Evite un fichier orphelin si la creation echoue
+      if (pdfPath) await deletePdf(pdfPath).catch(() => {})
+      throw e
     })
-
-    // Upload PDF si fourni
-    let pdfPath: string | null = null
-    if (file) {
-      if (file.type !== 'application/pdf') {
-        await prisma.invoice.delete({ where: { id: invoice.id } })
-        return NextResponse.json({ error: 'Le fichier doit être un PDF' }, { status: 400 })
-      }
-      if (file.size > 20 * 1024 * 1024) {
-        await prisma.invoice.delete({ where: { id: invoice.id } })
-        return NextResponse.json({ error: 'PDF trop volumineux (max 20 Mo)' }, { status: 400 })
-      }
-      const buffer = Buffer.from(await file.arrayBuffer())
-      pdfPath = `clients/${client.id}/invoices/${invoice.id}.pdf`
-      try {
-        await uploadPdf(pdfPath, buffer)
-        await prisma.invoice.update({ where: { id: invoice.id }, data: { pdfPath } })
-      } catch (uploadErr: any) {
-        await prisma.invoice.delete({ where: { id: invoice.id } })
-        return NextResponse.json(
-          { error: `Upload PDF échoué : ${uploadErr.message ?? 'inconnu'}` },
-          { status: 500 }
-        )
-      }
-    }
 
     // === Email au client ===
     let emailSent = false

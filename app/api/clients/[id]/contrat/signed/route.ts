@@ -3,13 +3,14 @@ import { prisma } from '@/lib/prisma'
 import { requireRole } from '@/lib/api-auth'
 import { checkRateLimit } from '@/lib/api-rate-limit'
 import { audit } from '@/lib/audit'
-import { uploadPdf } from '@/lib/storage'
+import { checkClientUpload } from '@/lib/storage'
 
 export const maxDuration = 30
 
 /**
  * POST /api/clients/[id]/contrat/signed
- * Multipart form: file=<pdf signe>
+ * JSON : { pdfPath } — PDF signe deja uploade en direct sur Supabase
+ * (via /api/uploads/sign, purpose 'client-contract').
  *
  * Upload du contrat signe par le client. Marque le dernier contrat
  * en statut 'ENVOYE' comme 'SIGNE'. Mise a jour de client.contratStatut.
@@ -31,17 +32,10 @@ export async function POST(
     const url = new URL(request.url)
     const targetContractId = url.searchParams.get('contractId')
 
-    // Recupere le fichier depuis le multipart
-    const formData = await request.formData()
-    const file = formData.get('pdf')
-    if (!(file instanceof File)) {
+    const body = await request.json().catch(() => ({}))
+    const pdfPathSigne = typeof body?.pdfPath === 'string' ? body.pdfPath : ''
+    if (!pdfPathSigne) {
       return NextResponse.json({ error: 'Fichier PDF manquant' }, { status: 400 })
-    }
-    if (file.type !== 'application/pdf') {
-      return NextResponse.json({ error: 'Le fichier doit être un PDF' }, { status: 400 })
-    }
-    if (file.size > 20 * 1024 * 1024) {
-      return NextResponse.json({ error: 'PDF trop volumineux (max 20 Mo)' }, { status: 400 })
     }
 
     const client = await prisma.client.findUnique({
@@ -70,10 +64,8 @@ export async function POST(
       )
     }
 
-    const buffer = Buffer.from(await file.arrayBuffer())
-    const pdfPathSigne = `clients/${client.id}/${target.id}-signed.pdf`
-
-    await uploadPdf(pdfPathSigne, buffer)
+    const uploadError = await checkClientUpload(pdfPathSigne, client.id, 'contracts')
+    if (uploadError) return NextResponse.json({ error: uploadError }, { status: 400 })
 
     await prisma.$transaction([
       prisma.contratClient.update({
@@ -93,7 +85,7 @@ export async function POST(
       metadata: {
         action: 'upload_signed',
         clientId: client.id,
-        pdfSize: buffer.length,
+        pdfPathSigne,
       },
       request,
     })

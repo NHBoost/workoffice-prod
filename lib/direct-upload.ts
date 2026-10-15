@@ -7,7 +7,7 @@
  */
 export async function directUpload(
   file: File,
-  params: { purpose: 'mail' | 'client-mail'; centerId?: string; clientId?: string }
+  params: { purpose: 'mail' | 'client-mail' | 'client-invoice' | 'client-contract'; centerId?: string; clientId?: string }
 ): Promise<string> {
   const signRes = await fetch('/api/uploads/sign', {
     method: 'POST',

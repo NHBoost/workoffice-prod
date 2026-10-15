@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { requireRole } from '@/lib/api-auth'
 import { checkRateLimit } from '@/lib/api-rate-limit'
 import { audit } from '@/lib/audit'
-import { signedUrl as makeSignedUrl, objectExists, isSafeStoragePath, deletePdf } from '@/lib/storage'
+import { signedUrl as makeSignedUrl, checkClientUpload, deletePdf } from '@/lib/storage'
 import { sendEmail, newMailEmail } from '@/lib/email'
 
 export const maxDuration = 30
@@ -104,12 +104,8 @@ export async function POST(
     }
 
     if (pdfPath) {
-      if (!isSafeStoragePath(pdfPath, `clients/${client.id}/mails/`) || !pdfPath.endsWith('.pdf')) {
-        return NextResponse.json({ error: 'Chemin de PDF invalide' }, { status: 400 })
-      }
-      if (!(await objectExists(pdfPath))) {
-        return NextResponse.json({ error: 'PDF introuvable dans le stockage, réessayez l’upload' }, { status: 400 })
-      }
+      const uploadError = await checkClientUpload(pdfPath, client.id, 'mails')
+      if (uploadError) return NextResponse.json({ error: uploadError }, { status: 400 })
     }
 
     const mail = await prisma.mail.create({

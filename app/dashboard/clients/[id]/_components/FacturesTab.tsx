@@ -6,6 +6,7 @@ import {
   Download, RotateCcw, Trash2,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { directUpload } from '@/lib/direct-upload'
 import { Card, Badge, EmptyState, Spinner, Modal, ConfirmDialog } from '@/components/ui'
 import { cn, formatCurrency } from '@/lib/utils'
 
@@ -89,7 +90,15 @@ export function FacturesTab({ clientId }: { clientId: string }) {
       fd.append('amount', amount)
       fd.append('tvaTaux', tvaTaux)
       fd.append('dueDate', dueDate)
-      if (pdfFile) fd.append('pdf', pdfFile)
+      // Upload direct du PDF vers Supabase (pas de limite Vercel)
+      if (pdfFile) {
+        try {
+          fd.append('pdfPath', await directUpload(pdfFile, { purpose: 'client-invoice', clientId }))
+        } catch (err: any) {
+          toast.error(err.message || 'Upload du PDF échoué')
+          return
+        }
+      }
       fd.append('notifyClient', notifyClient ? 'true' : 'false')
 
       const res = await fetch(`/api/clients/${clientId}/factures`, { method: 'POST', body: fd })

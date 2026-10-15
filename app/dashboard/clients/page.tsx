@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
+import { directUpload } from '@/lib/direct-upload'
 import { Card, Badge, EmptyState, Spinner, ActionMenu, ConfirmDialog } from '@/components/ui'
 import { cn, formatCurrency } from '@/lib/utils'
 import { FORMULE_LABELS, PERIODICITE_LABELS, type Formule, type Periodicite } from '@/lib/client-schemas'
@@ -187,11 +188,12 @@ export default function ClientsListPage() {
       if (!file) return
       setBusyId(clientId)
       try {
-        const fd = new FormData()
-        fd.append('pdf', file)
+        // Upload direct du PDF vers Supabase, puis enregistrement du chemin
+        const pdfPath = await directUpload(file, { purpose: 'client-contract', clientId: clientId })
         const res = await fetch(`/api/clients/${clientId}/contrat/signed`, {
           method: 'POST',
-          body: fd,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pdfPath }),
         })
         const body = await res.json().catch(() => ({}))
         if (!res.ok) {
@@ -200,6 +202,8 @@ export default function ClientsListPage() {
         }
         toast.success('Contrat signé téléversé')
         fetchClients()
+      } catch (err: any) {
+        toast.error(err.message || 'Upload échoué')
       } finally {
         setBusyId(null)
       }
